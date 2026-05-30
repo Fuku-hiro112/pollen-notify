@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: pollen-notify
+
+  # .env をプロパティファイルとして読み込む（Spring Boot ネイティブ機能）
+  config:
+    import: "optional:file:.env[.properties]"
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate          # Flyway がスキーマ管理。JPA は検証のみ。
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC          # TIMESTAMPTZ を UTC で扱う
+    show-sql: true                # 学習用：実行SQLをログ出力
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+# ポールンロボ API
+pollen-api:
+  base-url: https://wxtech.weathernews.com/opendata/v1/pollen
+  # citycode は観測対象の市区町村コード（後で設定／DB管理に移行）
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE   # バインドパラメータも表示（学習用）

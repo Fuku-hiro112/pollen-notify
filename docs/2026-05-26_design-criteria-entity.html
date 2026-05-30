@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Entity設計の判断観点 | 花粉通知アプリ</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+         max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.75; color: #1f2937; background: #fafafa; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.6rem; font-size: 1.8rem; }
+  h2 { border-left: 6px solid #2563eb; padding-left: 0.7rem; margin-top: 2.8rem; font-size: 1.4rem; }
+  h3 { color: #1e40af; margin-top: 1.8rem; }
+  h4 { color: #475569; margin-top: 1.2rem; }
+  .term { border-bottom: 1.5px dotted #2563eb; cursor: help; font-weight: 600; }
+  .concept { background: #ecfdf5; border-left: 4px solid #10b981; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .implementation { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .danger { background: #fee2e2; border-left: 4px solid #ef4444; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .tip { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .your-axis { background: linear-gradient(to right, #fef9c3, #fef3c7); border: 2px solid #ca8a04; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 6px; position: relative; }
+  .your-axis::before { content: "🎯 あなたの軸（OOP・保守性）"; position: absolute; top: -0.7rem; left: 0.8rem; background: #ca8a04; color: white; padding: 0.1rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: bold; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; background: white; font-size: 0.94em; }
+  th, td { border: 1px solid #d1d5db; padding: 0.55rem 0.8rem; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  code { background: #f3f4f6; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: Consolas, monospace; }
+  pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.86em; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .toc { background: white; border: 1px solid #e5e7eb; padding: 1rem 1.5rem; border-radius: 6px; margin: 1.5rem 0; }
+  .toc ol { margin: 0.3rem 0; padding-left: 1.4rem; }
+  .toc a { color: #2563eb; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  details { background: white; padding: 0.8rem 1rem; border: 1px solid #e5e7eb; border-radius: 4px; margin: 0.6rem 0; }
+  summary { cursor: pointer; font-weight: bold; color: #1e40af; }
+  .diagram { margin: 1.5rem 0; text-align: center; background: white; padding: 1.2rem; border-radius: 6px; border: 1px solid #e5e7eb; }
+  .phase4-hint { background: #fdf4ff; border: 1px dashed #c026d3; padding: 0.6rem 1rem; border-radius: 4px; font-size: 0.9em; color: #86198f; margin: 0.8rem 0; }
+  .phase4-hint::before { content: "🔮 Phase 4への伏線: "; font-weight: bold; }
+  .pros { color: #047857; }
+  .cons { color: #b91c1c; }
+  .axis-card { background: white; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.8rem 1rem; margin: 0.5rem 0; }
+  .verdict { background: #1e40af; color: white; padding: 0.6rem 1rem; border-radius: 4px; margin: 0.8rem 0; font-weight: bold; }
+  a.docref { color: #2563eb; font-size: 0.88em; }
+</style>
+</head>
+<body>
+
+<h1>Entity設計の判断観点</h1>
+<p>3つの設計判断「Lombok / ID戦略 / 日時型」を、<strong>OOP原則と保守性</strong>の視点でどう評価するか／2026-05-26 作成</p>
+
+<div class="concept">
+  <strong>このページの方針：</strong> 答えは出しません。<span class="term" title="あなたが設計を比較する時の評価軸。例：可読性、テスト容易性、不変性。">判断軸（観点）</span> を提示し、各選択肢が軸ごとにどう評価されるかを示します。あなたが「OOP・保守性」を重視するなら、特に注目すべき軸を🎯で強調してあります。最終的な選択はあなたが行ってください。
+</div>
+
+<div class="toc">
+  <strong>📚 目次</strong>
+  <ol>
+    <li><a href="#common-axes">共通の判断軸（OOP・保守性視点）</a></li>
+    <li><a href="#lombok">論点1: Lombokを使うか</a></li>
+    <li><a href="#id-strategy">論点2: ID生成戦略</a></li>
+    <li><a href="#datetime">論点3: 日時型</a></li>
+    <li><a href="#summary">あなたの軸に基づく総まとめ</a></li>
+    <li><a href="#selfcheck">理解度チェック</a></li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="common-axes">1. 共通の判断軸（OOP・保守性視点）</h2>
+
+<p>3つの論点はそれぞれ独立に見えますが、「<span class="term" title="オブジェクト指向プログラミング。データと振る舞いを一体化させた設計思想。">OOP</span>に則り保守性高く」という目標から逆算すると、共通の判断軸が見えてきます。</p>
+
+<div class="diagram">
+<svg width="800" height="280" viewBox="0 0 800 280" xmlns="http://www.w3.org/2000/svg">
+  <text x="400" y="25" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e40af">OOP・保守性から導かれる7つの判断軸</text>
+
+  <g>
+    <rect x="20" y="50" width="170" height="80" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+    <text x="105" y="75" text-anchor="middle" font-size="13" font-weight="bold">① カプセル化</text>
+    <text x="105" y="95" text-anchor="middle" font-size="10">フィールドを直接</text>
+    <text x="105" y="110" text-anchor="middle" font-size="10">露出していないか</text>
+  </g>
+
+  <g>
+    <rect x="210" y="50" width="170" height="80" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+    <text x="295" y="75" text-anchor="middle" font-size="13" font-weight="bold">② 不変性</text>
+    <text x="295" y="95" text-anchor="middle" font-size="10">作成後に状態が</text>
+    <text x="295" y="110" text-anchor="middle" font-size="10">勝手に変わらない</text>
+  </g>
+
+  <g>
+    <rect x="400" y="50" width="170" height="80" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+    <text x="485" y="75" text-anchor="middle" font-size="13" font-weight="bold">③ 同一性の明確さ</text>
+    <text x="485" y="95" text-anchor="middle" font-size="10">equals/hashCode</text>
+    <text x="485" y="110" text-anchor="middle" font-size="10">の基準が明示的か</text>
+  </g>
+
+  <g>
+    <rect x="590" y="50" width="170" height="80" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+    <text x="675" y="75" text-anchor="middle" font-size="13" font-weight="bold">④ 単一責任</text>
+    <text x="675" y="95" text-anchor="middle" font-size="10">クラスの責務が</text>
+    <text x="675" y="110" text-anchor="middle" font-size="10">明確で狭いか</text>
+  </g>
+
+  <g>
+    <rect x="20" y="150" width="170" height="80" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+    <text x="105" y="175" text-anchor="middle" font-size="13" font-weight="bold">⑤ 可読性</text>
+    <text x="105" y="195" text-anchor="middle" font-size="10">読んだ人が意図を</text>
+    <text x="105" y="210" text-anchor="middle" font-size="10">把握できるか</text>
+  </g>
+
+  <g>
+    <rect x="210" y="150" width="170" height="80" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+    <text x="295" y="175" text-anchor="middle" font-size="13" font-weight="bold">⑥ テスト容易性</text>
+    <text x="295" y="195" text-anchor="middle" font-size="10">単体テストが</text>
+    <text x="295" y="210" text-anchor="middle" font-size="10">書きやすいか</text>
+  </g>
+
+  <g>
+    <rect x="400" y="150" width="170" height="80" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+    <text x="485" y="175" text-anchor="middle" font-size="13" font-weight="bold">⑦ 拡張安全性</text>
+    <text x="485" y="195" text-anchor="middle" font-size="10">変更時に他箇所を</text>
+    <text x="485" y="210" text-anchor="middle" font-size="10">壊しにくいか</text>
+  </g>
+
+  <g>
+    <rect x="590" y="150" width="170" height="80" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
+    <text x="675" y="175" text-anchor="middle" font-size="13" font-weight="bold">⑧ ドメイン整合</text>
+    <text x="675" y="195" text-anchor="middle" font-size="10">ビジネス概念と</text>
+    <text x="675" y="210" text-anchor="middle" font-size="10">名前・型が一致</text>
+  </g>
+</svg>
+</div>
+
+<div class="your-axis">
+  あなたが「OOP・保守性」を重視するなら、特に <strong>①カプセル化 / ②不変性 / ③同一性 / ⑦拡張安全性</strong> の4軸を最重要視するのが筋です。⑤⑥は手段として効いてきます。⑧は Phase 4 のDDDで主役級になります。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="lombok">2. 論点1: Lombokを使うか</h2>
+
+<div class="concept">
+<strong>Lombokとは：</strong> <span class="term" title="コンパイル時にバイトコードを書き換えるツール。アノテーションを書くと自動でgetter/setter/constructorなどを生成する。">アノテーション処理器</span>で <code>@Getter</code>, <code>@Setter</code>, <code>@Builder</code>, <code>@RequiredArgsConstructor</code> 等を書くと、コンパイル時にgetter等を自動生成する。「定型コードを書かなくて済む」がウリ。
+</div>
+
+<h3>選択肢</h3>
+<table>
+<tr><th>選択肢</th><th>具体的アノテーション例</th></tr>
+<tr><td><strong>A. フル活用</strong></td><td><code>@Data</code>, <code>@Builder</code>, <code>@AllArgsConstructor</code></td></tr>
+<tr><td><strong>B. 安全な範囲だけ</strong></td><td><code>@Getter</code>, <code>@NoArgsConstructor(access=PROTECTED)</code>, <code>@EqualsAndHashCode(of="id")</code></td></tr>
+<tr><td><strong>C. 使わない（手書き）</strong></td><td>全部自分で書く / Java <code>record</code> を使う（ただし @Entity と相性悪い）</td></tr>
+</table>
+
+<h3>判断軸ごとの評価</h3>
+
+<table>
+<tr><th>軸</th><th>A: フル活用</th><th>B: 安全範囲</th><th>C: 手書き</th></tr>
+<tr><td>① カプセル化</td><td class="cons">❌ setterで内部状態が外から変更可能</td><td class="pros">✅ setterを生成しない選択ができる</td><td class="pros">✅ 完全制御</td></tr>
+<tr><td>② 不変性</td><td class="cons">❌ setterで破壊される</td><td class="pros">✅ Getterのみ生成 → 実質不変</td><td class="pros">✅ finalフィールドで強制可能</td></tr>
+<tr><td>③ 同一性（equals/hashCode）</td><td class="cons">❌ 全フィールド比較 → JPAで事故</td><td class="pros">✅ IDのみで比較を明示</td><td class="pros">✅ 自分で意図的に書く</td></tr>
+<tr><td>⑤ 可読性</td><td>△ 一見短いが裏で何が起きてるか不明</td><td>△ ある程度</td><td class="pros">✅ コードが事実</td></tr>
+<tr><td>⑥ テスト容易性</td><td class="pros">✅ Builder便利</td><td>△ ファクトリメソッド自作必要</td><td>△ 同上</td></tr>
+<tr><td>⑦ 拡張安全性</td><td class="cons">❌ 「setter」が誘発する破壊的変更が増える</td><td class="pros">✅ Setterがない＝意図しない変更を防げる</td><td class="pros">✅ 完全制御</td></tr>
+</table>
+
+<div class="danger">
+<strong>⚠ JPA × Lombokの著名な事故パターン</strong>
+<ul>
+  <li><code>@Data</code> を Entity に貼る → <code>equals/hashCode</code> が全フィールド比較 → 双方向関連で<span class="term" title="呼び出しが循環して永遠に終わらない現象。">無限ループ</span>。</li>
+  <li><code>@AllArgsConstructor</code> を Entity に貼る → IDも含めて引数になり、外部からID指定の生成が可能に。<span class="term" title="DBが採番すべきIDを外から渡せる状態。整合性破壊の温床。">自然キー破壊</span>。</li>
+  <li><code>@Builder</code> を Entity に貼る → 同上。<code>@Builder</code> はDTOやValueObjectで使うべき。</li>
+  <li><code>@NoArgsConstructor</code> を <code>public</code> で生やす → 不正な状態のEntityが作れる。JPAは<code>protected</code>でも反射で呼べる。</li>
+</ul>
+</div>
+
+<h3>あなたの軸でのおすすめ</h3>
+<div class="your-axis">
+<strong>B案（安全範囲）が筋。</strong> 具体的には：
+<pre><code>@Entity
+@Table(name = "observation_points")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)  // JPA用、外からは使えない
+@EqualsAndHashCode(of = "id")                       // ID基準で同一性を明示
+public class ObservationPoint {
+    @Id @GeneratedValue(...) private Long id;
+    private String externalId;
+    // ...
+    // setterは生成しない。状態変更は意味のあるメソッド経由
+    // 例: public void updateLocation(BigDecimal lat, BigDecimal lon) { ... }
+}</code></pre>
+<p>理由：「getterは公開しても害が少ない」「setterは公開すると <code>point.setId(99)</code> のような破壊的操作を許してしまう」という非対称性。getterのみLombok、書き換えは <strong>意味のあるメソッド</strong> として手書きする。</p>
+</div>
+
+<div class="tip">
+<strong>もう一段の選択肢：</strong> 学習目的を重視するなら <strong>C案（手書き）</strong> も非常に良い。「Lombokが裏で何をしているか」を理解する近道になる。Phase 1だけ手書き、Phase 2以降はBに移行、も可。
+</div>
+
+<div class="phase4-hint">
+Phase 4 で値オブジェクト（VO）を導入すると、VOには <code>@Value</code>（Lombokの不変オブジェクト用）が候補になります。EntityとVOで Lombok の使い分けが発生します。
+</div>
+
+<p class="docref">📖 参考：
+  <a href="https://projectlombok.org/features/" target="_blank">Lombok公式 機能一覧</a> /
+  <a href="https://vladmihalcea.com/the-best-way-to-use-the-equalsandhashcode-with-jpa-and-hibernate/" target="_blank">JPA × equals/hashCode のベストプラクティス (Vlad Mihalcea)</a>
+</p>
+
+<!-- ============================================================ -->
+<h2 id="id-strategy">3. 論点2: ID生成戦略</h2>
+
+<div class="concept">
+<strong>背景：</strong> DDLで <code>BIGSERIAL</code>（PostgreSQLの自動採番）にした。JPA側で対応する <code>@GeneratedValue(strategy=?)</code> の選択肢が複数ある。
+</div>
+
+<h3>選択肢</h3>
+<table>
+<tr><th>戦略</th><th>動作</th></tr>
+<tr><td><code>IDENTITY</code></td><td>INSERT文を発行 → DBが採番した値をJavaに戻す。<strong>INSERTごとに通信1往復</strong>。</td></tr>
+<tr><td><code>SEQUENCE</code></td><td>事前に <code>SELECT nextval()</code> で番号を取得 → JavaがIDを持った状態でINSERT。<strong>事前取得＋INSERT</strong>。</td></tr>
+<tr><td><code>AUTO</code></td><td>ベンダー任せ。PostgreSQLでは多くの場合SEQUENCEになるが明示性がない。</td></tr>
+<tr><td><code>UUID</code></td><td>Java側でUUID生成。DBに番号生成を頼まない。<strong>分散環境向き</strong>。</td></tr>
+</table>
+
+<div class="diagram">
+<svg width="780" height="240" viewBox="0 0 780 240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="ar1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <!-- IDENTITY -->
+  <text x="20" y="30" font-size="14" font-weight="bold" fill="#1e40af">IDENTITY</text>
+  <rect x="20" y="40" width="120" height="40" rx="4" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="80" y="65" text-anchor="middle" font-size="11">Java: save()</text>
+  <line x1="140" y1="60" x2="220" y2="60" stroke="#475569" stroke-width="1.5" marker-end="url(#ar1)"/>
+  <text x="180" y="55" text-anchor="middle" font-size="10">INSERT</text>
+  <rect x="220" y="40" width="160" height="40" rx="4" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="300" y="65" text-anchor="middle" font-size="11">DB: 採番 + INSERT</text>
+  <line x1="380" y1="60" x2="460" y2="60" stroke="#475569" stroke-width="1.5" marker-end="url(#ar1)"/>
+  <text x="420" y="55" text-anchor="middle" font-size="10">id返却</text>
+  <rect x="460" y="40" width="120" height="40" rx="4" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="520" y="65" text-anchor="middle" font-size="11">Java: id取得</text>
+  <text x="600" y="65" font-size="11" fill="#b91c1c">⚠ batch INSERT不可</text>
+
+  <!-- SEQUENCE -->
+  <text x="20" y="120" font-size="14" font-weight="bold" fill="#1e40af">SEQUENCE</text>
+  <rect x="20" y="130" width="120" height="40" rx="4" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="80" y="155" text-anchor="middle" font-size="11">Java: save()</text>
+  <line x1="140" y1="150" x2="220" y2="150" stroke="#475569" stroke-width="1.5" marker-end="url(#ar1)"/>
+  <text x="180" y="145" text-anchor="middle" font-size="10">nextval()</text>
+  <rect x="220" y="130" width="120" height="40" rx="4" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="280" y="155" text-anchor="middle" font-size="11">DB: 番号返却</text>
+  <line x1="340" y1="150" x2="420" y2="150" stroke="#475569" stroke-width="1.5" marker-end="url(#ar1)"/>
+  <text x="380" y="145" text-anchor="middle" font-size="10">id</text>
+  <rect x="420" y="130" width="160" height="40" rx="4" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="500" y="155" text-anchor="middle" font-size="11">Java: id付きINSERT</text>
+  <text x="600" y="155" font-size="11" fill="#047857">✅ batch可</text>
+</svg>
+</div>
+
+<h3>判断軸ごとの評価</h3>
+
+<table>
+<tr><th>軸</th><th>IDENTITY</th><th>SEQUENCE</th><th>UUID</th></tr>
+<tr><td>③ 同一性</td><td>△ 永続化までIDがnull</td><td class="pros">✅ 事前にID確定</td><td class="pros">✅ アプリ側でID確定</td></tr>
+<tr><td>⑥ テスト容易性</td><td class="cons">❌ save()するまでequals不能</td><td class="pros">✅ ID付きで生成可能</td><td class="pros">✅ 同上</td></tr>
+<tr><td>⑦ 拡張安全性（性能含む）</td><td class="cons">❌ Hibernateのbatch insertが効かない</td><td class="pros">✅ batch可</td><td class="pros">✅ batch可</td></tr>
+<tr><td>⑧ ドメイン整合</td><td>△ 整数連番</td><td>△ 整数連番</td><td class="pros">✅ グローバル一意</td></tr>
+<tr><td>可読性（ログ・URL）</td><td class="pros">✅ <code>/points/1</code></td><td class="pros">✅ <code>/points/1</code></td><td class="cons">❌ <code>/points/a8f3...</code></td></tr>
+<tr><td>学習対象としての面白さ</td><td>△ 簡単</td><td class="pros">✅ Hibernateの挙動が学べる</td><td>△ 別軸の学び</td></tr>
+</table>
+
+<h3>あなたの軸でのおすすめ</h3>
+<div class="your-axis">
+<strong>SEQUENCE が筋。</strong> 理由：
+<ul>
+  <li><strong>③同一性の明確さ</strong>：永続化前でもIDが確定する＝<code>equals(of="id")</code>戦略と矛盾しない。</li>
+  <li><strong>⑦拡張安全性</strong>：将来観測値を100件単位でINSERTする際、Hibernate の batch insert が効く（IDENTITYでは不可）。</li>
+  <li><strong>⑥テスト容易性</strong>：単体テストでEntityをsaveせずにequals検証できる。</li>
+  <li><strong>学習効果</strong>：「Hibernateは内部でどうSEQUENCEを使うか（allocationSize、pooled-loアルゴリズム）」を学ぶ題材になる。</li>
+</ul>
+<p>UUIDはマイクロサービス・分散システムの題材になるが、Phase 1には過剰。学習目的なら<strong>Phase 5の拡張</strong>として温めておく。</p>
+</div>
+
+<div class="warning">
+<strong>SEQUENCE採用時のJPA記述の注意点</strong>
+<pre><code>@Id
+@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "observation_points_id_seq")
+@SequenceGenerator(name = "observation_points_id_seq",
+                   sequenceName = "observation_points_id_seq",
+                   allocationSize = 50)   // ←ここ重要
+private Long id;</code></pre>
+<p><code>allocationSize</code> は「1回のnextvalで何個番号を予約するか」。デフォルト50はHibernateのデフォルトでDB側のSEQUENCEのINCREMENTと不一致だと番号が飛ぶ。<strong>DBのSEQUENCE INCREMENT と一致させる</strong>のがセオリー。</p>
+<p>BIGSERIAL は INCREMENT 1。なので最初は <code>allocationSize = 1</code> でスタートし、性能が要るようになったらDDLとJPAを揃えて変更、が安全。</p>
+</div>
+
+<p class="docref">📖 参考：
+  <a href="https://vladmihalcea.com/jpa-entity-identifier-generation/" target="_blank">JPA Entity Identifier Generation (Vlad Mihalcea)</a>
+</p>
+
+<!-- ============================================================ -->
+<h2 id="datetime">4. 論点3: 日時型</h2>
+
+<div class="concept">
+<strong>背景：</strong> DDLで <code>TIMESTAMPTZ</code>（タイムゾーン情報を持つ絶対時刻）にした。Javaの日時APIから何を選ぶか。
+</div>
+
+<h3>Javaの主要日時型</h3>
+<table>
+<tr><th>型</th><th>意味</th><th>例</th></tr>
+<tr><td><code>LocalDateTime</code></td><td>タイムゾーンなしの日時。「2026-05-26 10:00」</td><td>カレンダーの予定</td></tr>
+<tr><td><code>OffsetDateTime</code></td><td>UTCからのオフセット付き日時。「2026-05-26 10:00+09:00」</td><td>ログ・APIのI/O</td></tr>
+<tr><td><code>ZonedDateTime</code></td><td>タイムゾーンID付き日時。「2026-05-26 10:00 Asia/Tokyo」</td><td>夏時間考慮のスケジュール</td></tr>
+<tr><td><code>Instant</code></td><td>UTC基準の絶対時刻（タイムライン上の点）</td><td>イベント発生時刻、システム内部処理</td></tr>
+</table>
+
+<div class="diagram">
+<svg width="780" height="200" viewBox="0 0 780 200" xmlns="http://www.w3.org/2000/svg">
+  <text x="390" y="25" text-anchor="middle" font-size="14" font-weight="bold" fill="#1e40af">日時型の「情報量」の階層</text>
+
+  <rect x="50" y="50" width="160" height="50" rx="6" fill="#fee2e2" stroke="#ef4444" stroke-width="2"/>
+  <text x="130" y="72" text-anchor="middle" font-size="13" font-weight="bold">LocalDateTime</text>
+  <text x="130" y="90" text-anchor="middle" font-size="10">TZ情報なし（不完全）</text>
+
+  <rect x="240" y="50" width="160" height="50" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
+  <text x="320" y="72" text-anchor="middle" font-size="13" font-weight="bold">Instant</text>
+  <text x="320" y="90" text-anchor="middle" font-size="10">UTC固定（点として正確）</text>
+
+  <rect x="430" y="50" width="160" height="50" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+  <text x="510" y="72" text-anchor="middle" font-size="13" font-weight="bold">OffsetDateTime</text>
+  <text x="510" y="90" text-anchor="middle" font-size="10">オフセット保持</text>
+
+  <rect x="620" y="50" width="140" height="50" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>
+  <text x="690" y="72" text-anchor="middle" font-size="13" font-weight="bold">ZonedDateTime</text>
+  <text x="690" y="90" text-anchor="middle" font-size="10">ゾーンID保持</text>
+
+  <text x="50" y="130" font-size="11" fill="#6b7280">←情報少</text>
+  <text x="720" y="130" font-size="11" fill="#6b7280">情報多→</text>
+
+  <text x="390" y="170" text-anchor="middle" font-size="11" fill="#475569">TIMESTAMPTZ は「絶対時刻」を保存する型なので、Instant か OffsetDateTime が適合。</text>
+</svg>
+</div>
+
+<h3>判断軸ごとの評価</h3>
+<table>
+<tr><th>軸</th><th>LocalDateTime</th><th>Instant</th><th>OffsetDateTime</th></tr>
+<tr><td>① TIMESTAMPTZ との整合</td><td class="cons">❌ TZ情報を持たない</td><td class="pros">✅ UTC固定</td><td class="pros">✅ オフセット保持</td></tr>
+<tr><td>⑤ 可読性</td><td class="pros">✅ <code>2026-05-26T10:00</code></td><td>△ <code>2026-05-26T01:00Z</code>（UTC表記でとっつきにくい）</td><td class="pros">✅ <code>2026-05-26T10:00+09:00</code></td></tr>
+<tr><td>⑥ テスト容易性</td><td class="pros">✅ TZ気にしなくて良い</td><td class="pros">✅ <code>Clock</code>でモック可能</td><td>△ オフセット制御要</td></tr>
+<tr><td>⑧ ドメイン整合（"観測時刻"の意味）</td><td class="cons">❌ 「どこの10時」か曖昧</td><td class="pros">✅ 絶対時刻＝観測の本質</td><td>△ 観測地のオフセット情報も持つ</td></tr>
+<tr><td>API I/O（ISO8601 with offset）との相性</td><td class="cons">❌ 情報落ち</td><td>△ 受信時にオフセット情報を捨てる</td><td class="pros">✅ そのまま往復</td></tr>
+<tr><td>JPA/Hibernate 公式サポート</td><td class="pros">✅ 標準</td><td class="pros">✅ 標準</td><td class="pros">✅ 標準</td></tr>
+</table>
+
+<h3>あなたの軸でのおすすめ</h3>
+<div class="your-axis">
+<strong>判断は <code>measured_at</code> の<u>ドメイン的意味</u>で決まる。</strong>
+
+<h4>選択肢A：<code>Instant</code>（推奨）</h4>
+<p>「観測時刻」を<strong>タイムライン上の絶対点</strong>として捉える立場。<br>
+東京の10:00もNYの10:00も「別の点」として明確に区別される。観測という事象は世界に1つしかない点を持つ、というドメイン解釈と完全一致。</p>
+<p class="pros">✅ <strong>OOP的に最強の不変性</strong>：余計な情報を持たない＝ドメイン本質に集中</p>
+
+<h4>選択肢B：<code>OffsetDateTime</code></h4>
+<p>「観測時刻＋観測地点のオフセット」を一緒に持つ立場。<br>
+APIレスポンスがISO8601で<code>+09:00</code>を含むなら、そのまま受けて落とさず保存できる。「日本の地点なので+09:00で記録された」という<span class="term" title="データそのものに付随する補足情報。誰が・いつ・どこから等。">メタ情報</span>を保持できる。</p>
+<p class="pros">✅ 情報を捨てない</p>
+<p class="cons">❌ 観測地点の緯度経度から推測可能な情報をわざわざ持つ＝<span class="term" title="同じ情報が複数箇所に存在する状態。整合性管理が大変になる。">冗長性</span>増</p>
+
+<h4>結論ロジック</h4>
+<p>「保守性」を重視するなら、データの冗長を避ける <code>Instant</code> が筋。「観測地点」は別エンティティ（<code>ObservationPoint</code>）が持つ責任なので、観測値が「自分はどこのTZだったか」を覚える必要はない（責務分離＝<strong>④単一責任</strong>）。</p>
+</div>
+
+<div class="warning">
+<strong>application.yml の設定との整合</strong>
+<p>既に <code>hibernate.jdbc.time_zone: UTC</code> を設定済。これは「Java側の<code>LocalDateTime</code>をDBに渡す際UTCとみなす」設定で、<code>Instant</code>/<code>OffsetDateTime</code>を使う場合は無関係に動く。混乱を防ぐため、<strong>Entityでは<code>LocalDateTime</code>を絶対に使わない</strong>と決めるのが吉。</p>
+</div>
+
+<div class="phase4-hint">
+Phase 4 では <code>measured_at</code> を <code>MeasuredAt</code> という<span class="term" title="DDDの値オブジェクト。同一性を持たず値で区別される不変な型。">値オブジェクト</span>に昇格させる候補になります。その時、内部に <code>Instant</code> を持ち、「過去N分以内か」「営業時間中か」などのビジネスロジックを内包させます。
+</div>
+
+<p class="docref">📖 参考：
+  <a href="https://docs.oracle.com/javase/jp/21/docs/api/java.base/java/time/package-summary.html" target="_blank">java.time パッケージ (Oracle公式)</a>
+</p>
+
+<!-- ============================================================ -->
+<h2 id="summary">5. あなたの軸に基づく総まとめ</h2>
+
+<div class="verdict">
+  あなたが「OOP・保守性」を重視するなら、自然な答えは以下です（あくまで推奨。最終判断はあなた）。
+</div>
+
+<table>
+<tr><th>論点</th><th>推奨</th><th>主な理由</th></tr>
+<tr><td>Lombok</td><td><strong>B案（@Getter + @NoArgsConstructor(PROTECTED) + @EqualsAndHashCode(of="id")）</strong></td><td>カプセル化・不変性を守りつつ、定型コードは削減</td></tr>
+<tr><td>ID戦略</td><td><strong>SEQUENCE</strong>（最初は <code>allocationSize = 1</code>）</td><td>同一性・テスト容易性・バッチINSERT対応</td></tr>
+<tr><td>日時型</td><td><strong>Instant</strong></td><td>ドメイン本質（絶対時刻）と一致、責務分離、冗長性なし</td></tr>
+</table>
+
+<div class="implementation">
+<strong>これら3つを採用したEntityのスケルトン（参考）</strong>
+<pre><code>// ObservationPoint.java
+@Entity
+@Table(name = "observation_points")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@EqualsAndHashCode(of = "id")
+public class ObservationPoint {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "op_seq")
+    @SequenceGenerator(name = "op_seq",
+                       sequenceName = "observation_points_id_seq",
+                       allocationSize = 1)
+    private Long id;
+
+    private String externalId;
+    private String name;
+    private BigDecimal latitude;
+    private BigDecimal longitude;
+    private Instant createdAt;
+    private Instant updatedAt;
+
+    // ファクトリメソッド（自分で書く）
+    // 状態変更メソッド（自分で書く、setterの代わり）
+}</code></pre>
+<p><strong>このコードはClaudeが書いた「型枠」です。学習対象の本体（アノテーション詳細、ファクトリ、ビジネスメソッド）はあなたが書いてください。</strong></p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="selfcheck">6. 理解度チェック</h2>
+
+<details>
+<summary>Q1. なぜ Entity の equals/hashCode を「全フィールド比較」ではなく「ID基準」にすべきか？</summary>
+<p><strong>答え：</strong> Entity の<span class="term" title="DDD用語。「これとあれは同じ実体か」を判定する基準。">同一性（identity）</span>は「DB上の同じレコードを指すか」で決まるべき。同じレコードなら、値が更新されても等価。逆に、別レコードなら全フィールド一致しても等価ではない。これがEntityの本質。値で同等性を判定したいオブジェクトは Entity ではなく Value Object として別途設計する。</p>
+</details>
+
+<details>
+<summary>Q2. IDENTITY 戦略では、なぜ Hibernate の batch insert が効かないのか？</summary>
+<p><strong>答え：</strong> Hibernate は「INSERT文を複数まとめて投げて性能を稼ぐ」最適化を持つが、IDENTITY だと「1件INSERT→DBが返したIDを取得→次のINSERT」を順次行う必要があり、まとめられない。SEQUENCE なら事前にIDを確保できるので、まとめてINSERT可能。</p>
+</details>
+
+<details>
+<summary>Q3. なぜ <code>LocalDateTime</code> ではなく <code>Instant</code> を使うべきか？</summary>
+<p><strong>答え：</strong> <code>LocalDateTime</code> はTZ情報を持たない＝「どこの10時か」が不明。観測値という<strong>事象</strong>は世界に1つの時点で起きたものなので、表現する型もそれと一致した「絶対時刻」型であるべき。<code>Instant</code> は UTCタイムライン上の点を表す唯一の型。</p>
+</details>
+
+<details>
+<summary>Q4. setter を生成しない代わりに、状態を変更したい時はどう書く？</summary>
+<p><strong>答え：</strong> 「意味のあるメソッド」として手書きする。例：<code>point.updateLocation(lat, lon)</code>, <code>point.rename(newName)</code>。setter（<code>setLatitude</code>）は「何のために値を変えるのか」を示せないが、メソッド名なら意図が表現できる。これはOOPの<span class="term" title="メソッド名で意図を表現する設計。setXxxではなくincrementCounter、freezeなど。">語彙（ユビキタス言語）</span>の第一歩。</p>
+</details>
+
+<details>
+<summary>Q5. SEQUENCE の <code>allocationSize</code> を 50（Hibernateデフォルト）にして、DBの <code>INCREMENT BY</code> を 1 のままにすると何が起きる？</summary>
+<p><strong>答え：</strong> Hibernate は「nextval()で取得した値から50個分は自分で割り当てる」と考える。一方DBは1ずつしかインクリメントしないので、Hibernate内部の予約番号がDBの実際の次番号と衝突 → 重複IDが採番される or 番号飛びが発生する。両者は必ず一致させる。<strong>「設定がDBとJPAで二重管理になっている」のは保守性の敵</strong>。</p>
+</details>
+
+<hr style="margin: 3rem 0;">
+<p style="text-align: center; color: #6b7280; font-size: 0.9em;">花粉通知アプリ Entity設計判断ガイド ／ Generated 2026-05-26</p>
+
+</body>
+</html>

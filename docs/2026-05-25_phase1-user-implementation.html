@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Phase 1 ユーザー実装ガイド | 花粉通知アプリ</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+         max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.75; color: #1f2937; background: #fafafa; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.6rem; font-size: 1.8rem; }
+  h2 { border-left: 6px solid #2563eb; padding-left: 0.7rem; margin-top: 2.8rem; font-size: 1.4rem; }
+  h3 { color: #1e40af; margin-top: 1.8rem; }
+  .term { border-bottom: 1.5px dotted #2563eb; cursor: help; font-weight: 600; }
+  .concept { background: #ecfdf5; border-left: 4px solid #10b981; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .implementation { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .danger { background: #fee2e2; border-left: 4px solid #ef4444; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .tip { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .user-task { background: linear-gradient(to right, #fff7ed, #fffbeb); border: 2px dashed #f97316; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 6px; position: relative; }
+  .user-task::before { content: "🖊 あなたが書く"; position: absolute; top: -0.7rem; left: 0.8rem; background: #f97316; color: white; padding: 0.1rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: bold; }
+  .claude-task { background: #f9fafb; border: 2px dashed #6b7280; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 6px; position: relative; }
+  .claude-task::before { content: "🤖 Claude担当"; position: absolute; top: -0.7rem; left: 0.8rem; background: #6b7280; color: white; padding: 0.1rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: bold; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; background: white; }
+  th, td { border: 1px solid #d1d5db; padding: 0.55rem 0.8rem; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  code { background: #f3f4f6; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: Consolas, monospace; }
+  pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.88em; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .toc { background: white; border: 1px solid #e5e7eb; padding: 1rem 1.5rem; border-radius: 6px; margin: 1.5rem 0; }
+  .toc ol { margin: 0.3rem 0; padding-left: 1.4rem; }
+  .toc a { color: #2563eb; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  details { background: white; padding: 0.8rem 1rem; border: 1px solid #e5e7eb; border-radius: 4px; margin: 0.6rem 0; }
+  summary { cursor: pointer; font-weight: bold; color: #1e40af; }
+  .diagram { margin: 1.5rem 0; text-align: center; background: white; padding: 1.2rem; border-radius: 6px; border: 1px solid #e5e7eb; }
+  .step-num { display: inline-block; width: 1.8rem; height: 1.8rem; line-height: 1.8rem; background: #2563eb; color: white; border-radius: 50%; text-align: center; font-weight: bold; margin-right: 0.5rem; }
+  .phase4-hint { background: #fdf4ff; border: 1px dashed #c026d3; padding: 0.6rem 1rem; border-radius: 4px; font-size: 0.9em; color: #86198f; margin: 0.8rem 0; }
+  .phase4-hint::before { content: "🔮 Phase 4への伏線: "; font-weight: bold; }
+  .deps-arrow { font-size: 1.4rem; color: #6b7280; margin: 0 0.4rem; }
+  a.docref { color: #2563eb; font-size: 0.88em; }
+</style>
+</head>
+<body>
+
+<h1>Phase 1 ユーザー実装ガイド</h1>
+<p>花粉通知アプリ／2026-05-25 作成</p>
+
+<div class="concept">
+  <strong>このページの目的：</strong> Docker・Flyway・依存関係などの土台が整った状態から、あなたが <span class="term" title="JavaやKotlinで「データの形」を定義したクラス。データベースのレコード1行を表す。">Entity</span> → <span class="term" title="DBへのCRUD操作を抽象化したインタフェース。Spring Data JPAが自動実装してくれる。">Repository</span> → <span class="term" title="Data Transfer Object。レイヤー間で運ぶデータ専用の容れ物。">DTO</span> → クライアント → サービス → コントローラ の順に自分で実装してPhase 1を完成させる流れを示します。
+</div>
+
+<div class="toc">
+  <strong>📚 目次</strong>
+  <ol>
+    <li><a href="#current">現在の状態（完了済み）</a></li>
+    <li><a href="#bigpicture">全体像とレイヤー依存</a></li>
+    <li><a href="#step1">Step 1: Entity を書く</a></li>
+    <li><a href="#step2">Step 2: Repository を書く</a></li>
+    <li><a href="#step3">Step 3: API DTO を書く</a></li>
+    <li><a href="#step4">Step 4: API クライアントを書く</a></li>
+    <li><a href="#step5">Step 5: Service を書く</a></li>
+    <li><a href="#step6">Step 6: 動作確認用 Controller を書く</a></li>
+    <li><a href="#pitfalls">よくある落とし穴</a></li>
+    <li><a href="#selfcheck">理解度チェック</a></li>
+    <li><a href="#next">次のアクション</a></li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="current">1. 現在の状態（完了済み）</h2>
+
+<table>
+  <tr><th>要素</th><th>状態</th><th>担当</th></tr>
+  <tr><td>Gradle依存（JPA, Flyway, Commons CSV）</td><td>✅ 完了</td><td>Claude</td></tr>
+  <tr><td>PostgreSQL（Docker Compose）</td><td>✅ 起動中・healthy</td><td>Claude</td></tr>
+  <tr><td><code>observation_points</code> テーブル</td><td>✅ Flyway V1で作成済</td><td>Claude</td></tr>
+  <tr><td><code>pollen_measurements</code> テーブル</td><td>✅ Flyway V1で作成済</td><td>Claude</td></tr>
+  <tr><td><code>application.yml</code>（DB接続、Flyway、Hibernate設定）</td><td>✅ 完了</td><td>Claude</td></tr>
+  <tr><td>パッケージ構造（controller/service/repository/entity/dto/client）</td><td>⏳ 未作成（あなたが作る）</td><td>あなた</td></tr>
+  <tr><td>Entity / Repository / Service / Client / Controller</td><td>⏳ 未実装</td><td>あなた</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="bigpicture">2. 全体像とレイヤー依存</h2>
+
+<p>Phase 1のデータフローと、書くべきクラスの位置関係を図で示します。</p>
+
+<div class="diagram">
+<svg width="880" height="420" viewBox="0 0 880 420" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <!-- External API -->
+  <rect x="20" y="20" width="180" height="70" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
+  <text x="110" y="50" text-anchor="middle" font-weight="bold" font-size="14">ポールンロボAPI</text>
+  <text x="110" y="72" text-anchor="middle" font-size="11">wxtech.weathernews.com</text>
+
+  <!-- Controller -->
+  <rect x="340" y="20" width="200" height="60" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="440" y="45" text-anchor="middle" font-weight="bold" font-size="13">Controller (Step 6)</text>
+  <text x="440" y="65" text-anchor="middle" font-size="11">手動トリガ用エンドポイント</text>
+
+  <!-- Service -->
+  <rect x="340" y="120" width="200" height="60" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="440" y="145" text-anchor="middle" font-weight="bold" font-size="13">Service (Step 5)</text>
+  <text x="440" y="165" text-anchor="middle" font-size="11">PollenFetchService</text>
+
+  <!-- Client -->
+  <rect x="70" y="120" width="200" height="60" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="170" y="145" text-anchor="middle" font-weight="bold" font-size="13">Client (Step 4)</text>
+  <text x="170" y="165" text-anchor="middle" font-size="11">PollenApiClient</text>
+
+  <!-- DTO -->
+  <rect x="70" y="220" width="200" height="60" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
+  <text x="170" y="245" text-anchor="middle" font-weight="bold" font-size="13">DTO (Step 3)</text>
+  <text x="170" y="265" text-anchor="middle" font-size="11">PollenApiRow</text>
+
+  <!-- Repository -->
+  <rect x="610" y="120" width="200" height="60" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="710" y="145" text-anchor="middle" font-weight="bold" font-size="13">Repository (Step 2)</text>
+  <text x="710" y="165" text-anchor="middle" font-size="11">JpaRepository&lt;...&gt;</text>
+
+  <!-- Entity -->
+  <rect x="610" y="220" width="200" height="60" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+  <text x="710" y="245" text-anchor="middle" font-weight="bold" font-size="13">Entity (Step 1)</text>
+  <text x="710" y="265" text-anchor="middle" font-size="11">ObservationPoint / Measurement</text>
+
+  <!-- DB -->
+  <ellipse cx="710" cy="360" rx="100" ry="30" fill="#ddd6fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="710" y="365" text-anchor="middle" font-weight="bold" font-size="13">PostgreSQL</text>
+
+  <!-- Arrows -->
+  <!-- Controller -> Service -->
+  <line x1="440" y1="80" x2="440" y2="118" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- Service -> Client -->
+  <line x1="338" y1="155" x2="272" y2="155" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- Service -> Repository -->
+  <line x1="542" y1="155" x2="608" y2="155" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- Client -> External API -->
+  <line x1="170" y1="118" x2="170" y2="92" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- Client -> DTO -->
+  <line x1="170" y1="182" x2="170" y2="218" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- Repository -> Entity -->
+  <line x1="710" y1="182" x2="710" y2="218" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <!-- Entity -> DB -->
+  <line x1="710" y1="282" x2="710" y2="328" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Service -> Entity (via mapper inside service) -->
+  <path d="M 440 180 Q 440 320 610 250" stroke="#a78bfa" stroke-width="2" fill="none" stroke-dasharray="4,4" marker-end="url(#arrow)"/>
+  <text x="510" y="320" font-size="10" fill="#7c3aed">DTO→Entity 変換</text>
+</svg>
+</div>
+
+<div class="tip">
+  <strong>読み方：</strong> 矢印は「呼び出す方向」。Controller が Service を呼び、Service が Client（外部API）と Repository（DB）の両方を呼ぶ。Entity は DB にマップされる「データの形」、DTO は API レスポンスを受ける「データの形」で、Service の中で DTO → Entity に変換します。
+</div>
+
+<div class="phase4-hint">
+  Phase 4 で <span class="term" title="ドメイン駆動設計。ビジネスルールをコードの中心に据える設計思想。">DDD</span> リファクタすると、<code>Entity</code> は「集約ルート＋値オブジェクト」に分解され、<code>Service</code> は「アプリケーションサービス＋ドメインサービス」に分離されます。今は気にせず素直に書いてOK。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="step1"><span class="step-num">1</span>Step 1: Entity を書く</h2>
+
+<div class="concept">
+  <strong>学習対象：</strong> <span class="term" title="Java Persistence API。Javaオブジェクトとリレーショナルデータベースの間のマッピング標準仕様。">JPA</span> アノテーション、<span class="term" title="Object-Relational Mapping。オブジェクトとRDBのテーブルを対応付ける技術。">ORM</span> マッピング、<span class="term" title="変更不可能（イミュータブル）なオブジェクト。値が変わらないので扱いやすい。">不変オブジェクト</span> の設計
+</div>
+
+<h3>作るもの</h3>
+
+<div class="user-task">
+  <p>以下2クラスを <code>src/main/java/com/fuku/pollen_notify/entity/</code> に作成：</p>
+  <ul>
+    <li><code>ObservationPoint.java</code> — <code>observation_points</code> テーブルに対応</li>
+    <li><code>PollenMeasurement.java</code> — <code>pollen_measurements</code> テーブルに対応</li>
+  </ul>
+</div>
+
+<h3>調べてほしいアノテーション</h3>
+<table>
+  <tr><th>アノテーション</th><th>役割（自分で調べる）</th></tr>
+  <tr><td><code>@Entity</code></td><td>このクラスはJPA管理対象</td></tr>
+  <tr><td><code>@Table(name=...)</code></td><td>テーブル名を明示</td></tr>
+  <tr><td><code>@Id</code></td><td>主キーフィールド</td></tr>
+  <tr><td><code>@GeneratedValue(strategy=...)</code></td><td>自動採番。<code>IDENTITY</code> vs <code>SEQUENCE</code> の違いを調べると良い</td></tr>
+  <tr><td><code>@Column(name=..., nullable=..., unique=...)</code></td><td>カラム属性</td></tr>
+  <tr><td><code>@ManyToOne</code> / <code>@JoinColumn</code></td><td>FK関連（PollenMeasurement → ObservationPoint）</td></tr>
+  <tr><td><code>@UniqueConstraint</code></td><td>複合UNIQUE（uq_measurementに対応）</td></tr>
+</table>
+
+<h3>設計判断ポイント（自分で決める）</h3>
+
+<details>
+<summary>① ID生成戦略：IDENTITY か SEQUENCE か？</summary>
+<p>テーブル定義は <code>BIGSERIAL</code> ＝ 裏で SEQUENCE が動く形式。JPA側で <code>GenerationType.IDENTITY</code> と <code>SEQUENCE</code> どちらでも動くが、挙動が違う。「<span class="term" title="JPAでEntityをDBに保存する操作。">永続化</span>のタイミングでINSERT発行 vs 事前にSEQUENCE取得」など。</p>
+<p>調べてみるキーワード：「JPA IDENTITY SEQUENCE 違い」「Hibernate batch insert」</p>
+</details>
+
+<details>
+<summary>② 日時型：LocalDateTime / Instant / OffsetDateTime どれを使うか？</summary>
+<p>テーブル定義は <code>TIMESTAMPTZ</code>（タイムゾーン付き）。<code>LocalDateTime</code> はタイムゾーン情報を持たないので不適合。<code>Instant</code> か <code>OffsetDateTime</code> が候補。</p>
+<p>調べてみるキーワード：「JPA Instant OffsetDateTime TIMESTAMPTZ」</p>
+</details>
+
+<details>
+<summary>③ 関連の持ち方：双方向 or 単方向？</summary>
+<p><code>PollenMeasurement</code> から <code>ObservationPoint</code> への参照は確実に必要（<code>@ManyToOne</code>）。逆方向（<code>ObservationPoint</code> が <code>List&lt;PollenMeasurement&gt;</code> を持つ）は持たせない方が無難（<span class="term" title="関連の片方のオブジェクトを取り出すと、もう片方が自動的に取り出される現象。意図せぬSQL発行の原因。">遅延ロード</span>の沼にはまりがち）。</p>
+<p>調べてみるキーワード：「JPA 単方向 双方向 アンチパターン」</p>
+</details>
+
+<details>
+<summary>④ Lombok使う？使わない？</summary>
+<p><code>build.gradle.kts</code> には既に Lombok が入っている。<code>@Getter</code>, <code>@NoArgsConstructor(access = PROTECTED)</code> 等が定番。ただし JPA との相性で <code>@Data</code> や <code>@EqualsAndHashCode</code> を雑に使うと事故る。</p>
+<p>調べてみるキーワード：「JPA Lombok アンチパターン」</p>
+</details>
+
+<div class="danger">
+  <strong>⚠ やりがちな失敗</strong>
+  <ul>
+    <li><code>@Data</code> を Entity に貼る → <code>equals/hashCode</code> が全フィールド比較になり、双方向関連で <span class="term" title="呼び出しが永遠に終わらない状態。">無限ループ</span>。</li>
+    <li>引数なしコンストラクタを public で公開 → ドメイン的に不正な状態のEntityが作れてしまう。<code>protected</code> 推奨。</li>
+    <li>ID生成戦略を <code>AUTO</code> にする → ベンダー依存で予期せぬ挙動になる。明示すべき。</li>
+  </ul>
+</div>
+
+<h3>動作確認方法</h3>
+<div class="implementation">
+  <ol>
+    <li>Entityを書く</li>
+    <li><code>./gradlew bootRun</code></li>
+    <li>起動成功すれば <code>ddl-auto: validate</code> がスキーマ一致を保証してくれる</li>
+    <li>起動失敗時は <code>Schema-validation: missing column</code> 等のエラーが出る → Entity定義とDDLを照合</li>
+  </ol>
+</div>
+
+<p class="docref">📖 公式：
+  <a href="https://docs.spring.io/spring-data/jpa/reference/jpa/entity-persistence.html" target="_blank">Spring Data JPA Reference</a> /
+  <a href="https://jakarta.ee/specifications/persistence/3.1/jakarta-persistence-spec-3.1" target="_blank">Jakarta Persistence Spec</a>
+</p>
+
+<div class="phase4-hint">
+  Phase 4 では <code>ObservationPoint</code> を <span class="term" title="DDDで「変更の整合性境界」となるエンティティ群の親玉。">集約ルート</span> に昇格、<code>pollen_count</code> や <code>measured_at</code> を <span class="term" title="同一性を持たず値で区別される不変オブジェクト。Money、Coordinate等。">値オブジェクト</span> に切り出します。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="step2"><span class="step-num">2</span>Step 2: Repository を書く</h2>
+
+<div class="concept">
+  <strong>学習対象：</strong> Spring Data JPA の <span class="term" title="メソッド名から自動的にSQLを生成してくれる仕組み。findByXxxAndYyy のような命名で動く。">クエリメソッド命名規則</span>、<code>JpaRepository</code> 継承の仕組み
+</div>
+
+<div class="user-task">
+<p><code>src/main/java/com/fuku/pollen_notify/repository/</code> に作成：</p>
+<ul>
+  <li><code>ObservationPointRepository.java</code></li>
+  <li><code>PollenMeasurementRepository.java</code></li>
+</ul>
+</div>
+
+<h3>最低限必要なメソッド（自分で考える）</h3>
+<table>
+  <tr><th>用途</th><th>メソッド名のヒント</th></tr>
+  <tr><td>citycode で観測地点を取得</td><td><code>findByExternalId(String externalId)</code></td></tr>
+  <tr><td>(地点, 時刻) で観測値の存在確認</td><td><code>existsByObservationPointAndMeasuredAt(...)</code></td></tr>
+  <tr><td>地点の最新N件取得（Phase 2用、今は不要）</td><td><code>findTop10ByObservationPointOrderByMeasuredAtDesc(...)</code></td></tr>
+</table>
+
+<div class="tip">
+  Spring Data JPA は <code>JpaRepository&lt;Entity, ID型&gt;</code> を継承するだけで <code>save / findById / findAll / delete</code> 等が自動で使える。命名規則に従ったメソッドを宣言するだけで SQL を書かずに済むのが強み。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="step3"><span class="step-num">3</span>Step 3: API DTO を書く</h2>
+
+<div class="concept">
+  <strong>学習対象：</strong> 外部API表現と永続化表現を分ける考え方（<span class="term" title="システムの境界で変換層を設ける設計。外部の変更を内側に波及させない。">Anti-Corruption Layer</span> の入口）
+</div>
+
+<h3>ポールンロボAPI レスポンス例（CSV）</h3>
+<pre><code>citycode,date,pollen
+13103,2026-05-25T10:00:00+09:00,12
+13103,2026-05-25T11:00:00+09:00,15
+13103,2026-05-25T12:00:00+09:00,-9999</code></pre>
+
+<div class="warning">
+  <strong>欠測値 <code>-9999</code> に注意。</strong> そのままDBに入れてはいけない。DTO→Entity変換時に「欠測はスキップ」のルールが必要。
+</div>
+
+<div class="user-task">
+<p><code>src/main/java/com/fuku/pollen_notify/dto/PollenApiRow.java</code> を作成。CSV1行を表す素朴なクラス（or Java <span class="term" title="不変なデータキャリアクラス。Java 16で正式追加。">record</span>）で良い。</p>
+<p>フィールド：<code>cityCode</code>, <code>measuredAt</code>, <code>pollenCount</code>（int or Integer）</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="step4"><span class="step-num">4</span>Step 4: API クライアントを書く</h2>
+
+<div class="concept">
+  <strong>学習対象：</strong> <code>RestClient</code>（Spring 6.1+）、Apache Commons CSV、外部依存の<span class="term" title="単体テスト時に外部APIを呼ばないよう、別実装に差し替え可能にすること。">差し替え可能性</span>
+</div>
+
+<div class="user-task">
+<p><code>src/main/java/com/fuku/pollen_notify/client/PollenApiClient.java</code> を作成。</p>
+<p>役割：citycode と期間を渡すと、<code>List&lt;PollenApiRow&gt;</code> を返す。</p>
+</div>
+
+<h3>RestClient の使い方（自分で調べる）</h3>
+<pre><code>RestClient restClient = RestClient.create();
+String csv = restClient.get()
+    .uri("https://.../pollen?citycode={c}&amp;start={s}&amp;end={e}", citycode, start, end)
+    .retrieve()
+    .body(String.class);</code></pre>
+
+<h3>Apache Commons CSV の使い方（自分で調べる）</h3>
+<pre><code>CSVFormat format = CSVFormat.DEFAULT.builder()
+    .setHeader().setSkipHeaderRecord(true).build();
+try (CSVParser parser = CSVParser.parse(csv, format)) {
+    for (CSVRecord r : parser) {
+        // r.get("citycode"), r.get("date"), r.get("pollen")
+    }
+}</code></pre>
+
+<div class="tip">
+  Client は「URL構築・HTTP呼出・CSVパース」までを担当。**ビジネスロジック（欠測値の除外、地点の存在確認、保存）は Service の責務** にする。境界を意識して書くと Phase 4 で楽。
+</div>
+
+<p class="docref">📖 公式：
+  <a href="https://docs.spring.io/spring-framework/reference/integration/rest-clients.html#rest-restclient" target="_blank">Spring RestClient</a> /
+  <a href="https://commons.apache.org/proper/commons-csv/" target="_blank">Apache Commons CSV</a>
+</p>
+
+<!-- ============================================================ -->
+<h2 id="step5"><span class="step-num">5</span>Step 5: Service を書く</h2>
+
+<div class="concept">
+  <strong>学習対象：</strong> <span class="term" title="ある一連の処理をすべて成功させるか、すべて失敗させる単位。">トランザクション</span>境界、<span class="term" title="UPDATE or INSERT。存在すれば更新、なければ挿入。">UPSERT</span> パターン、DTO→Entity 変換
+</div>
+
+<div class="user-task">
+<p><code>src/main/java/com/fuku/pollen_notify/service/PollenFetchService.java</code> を作成。</p>
+<p>役割：「指定 citycode の花粉データを取得してDBに保存する」ユースケースを1メソッドで実現。</p>
+</div>
+
+<h3>処理フロー（自分で実装）</h3>
+
+<div class="diagram">
+<svg width="780" height="320" viewBox="0 0 780 320" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect x="20" y="20" width="160" height="50" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="100" y="50" text-anchor="middle" font-size="12">① Client.fetch(citycode)</text>
+
+  <rect x="220" y="20" width="160" height="50" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="300" y="50" text-anchor="middle" font-size="12">② 欠測値(-9999)を除外</text>
+
+  <rect x="420" y="20" width="160" height="50" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="500" y="50" text-anchor="middle" font-size="12">③ 地点をUPSERT</text>
+
+  <rect x="620" y="20" width="140" height="50" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="690" y="50" text-anchor="middle" font-size="12">④ Measurement変換</text>
+
+  <rect x="220" y="120" width="160" height="50" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="300" y="150" text-anchor="middle" font-size="12">⑤ 重複は除外</text>
+
+  <rect x="420" y="120" width="160" height="50" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+  <text x="500" y="150" text-anchor="middle" font-size="12">⑥ saveAll() でDB保存</text>
+
+  <line x1="180" y1="45" x2="218" y2="45" stroke="#475569" stroke-width="2" marker-end="url(#arrow2)"/>
+  <line x1="380" y1="45" x2="418" y2="45" stroke="#475569" stroke-width="2" marker-end="url(#arrow2)"/>
+  <line x1="580" y1="45" x2="618" y2="45" stroke="#475569" stroke-width="2" marker-end="url(#arrow2)"/>
+  <line x1="690" y1="70" x2="500" y2="118" stroke="#475569" stroke-width="2" marker-end="url(#arrow2)"/>
+  <line x1="380" y1="145" x2="418" y2="145" stroke="#475569" stroke-width="2" marker-end="url(#arrow2)"/>
+
+  <text x="390" y="260" text-anchor="middle" font-size="13" fill="#1e40af" font-weight="bold">@Transactional 境界（メソッド全体）</text>
+  <rect x="10" y="200" width="760" height="80" rx="8" fill="none" stroke="#1e40af" stroke-width="2" stroke-dasharray="6,4"/>
+</svg>
+</div>
+
+<h3>UPSERT の実装方法（選択肢）</h3>
+<details>
+<summary>A案：Service の中で findByExternalId → なければ save</summary>
+<p>素朴で読みやすい。Phase 1には十分。同時実行で稀に重複発生するが、external_idのUNIQUE制約で2件目がエラーになるので大事故にはならない。</p>
+</details>
+<details>
+<summary>B案：ネイティブクエリで INSERT ... ON CONFLICT DO UPDATE</summary>
+<p>PostgreSQL固有機能。性能◎・並列◎だが学習対象が逸れる。Phase 1では不要。</p>
+</details>
+<details>
+<summary>C案：Spring Data JPA の @Modifying クエリでUPSERT</summary>
+<p>非標準。複雑。やめる。</p>
+</details>
+
+<div class="tip"><strong>推奨：A案</strong>（Phase 1の素直な学習）</div>
+
+<h3>重複除外の方法</h3>
+<p>Step 2 で書いた <code>existsByObservationPointAndMeasuredAt</code> で1件ずつチェック → 重複ならスキップ。性能は気にしない。Phase 1では正しさ優先。</p>
+
+<div class="phase4-hint">
+  Phase 4 では「観測値登録ユースケース」を <span class="term" title="DDDで、複数の集約をまたぐビジネスロジックを置く場所。">ドメインサービス</span> として独立させ、<code>Service</code> は「アプリケーションサービス」（トランザクション境界・I/O境界のみ）になります。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="step6"><span class="step-num">6</span>Step 6: 動作確認用 Controller を書く</h2>
+
+<div class="user-task">
+<p><code>src/main/java/com/fuku/pollen_notify/controller/PollenController.java</code> を作成。</p>
+<p>役割：ブラウザ or curl から手動で fetch を発火できるエンドポイント。</p>
+</div>
+
+<h3>最小エンドポイント例（自分で実装）</h3>
+<pre><code>GET /admin/fetch?citycode=13103&amp;start=20260520&amp;end=20260525
+→ Service呼出 → 保存件数を返す</code></pre>
+
+<div class="warning">
+  これは <strong>動作確認用</strong> なので Phase 1限定。Phase 2で <code>@Scheduled</code> による自動実行に置き換える。
+</div>
+
+<h3>動作確認の流れ</h3>
+<div class="implementation">
+<ol>
+  <li><code>docker compose up -d</code>（DB起動）</li>
+  <li><code>./gradlew bootRun</code></li>
+  <li>ブラウザで <code>http://localhost:8080/admin/fetch?citycode=13103&amp;start=20260520&amp;end=20260525</code></li>
+  <li>レスポンスで保存件数を確認</li>
+  <li><code>docker compose exec db psql -U pollen -d pollen_notify -c "SELECT * FROM pollen_measurements LIMIT 10;"</code></li>
+  <li>データが入っていれば Phase 1 完了 🎉</li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="pitfalls">3. よくある落とし穴</h2>
+
+<table>
+  <tr><th>症状</th><th>原因</th><th>対処</th></tr>
+  <tr><td>起動時に Schema-validation エラー</td><td>Entity定義とDDLが不一致</td><td>カラム名・型・nullableを照合</td></tr>
+  <tr><td>LazyInitializationException</td><td>トランザクション外で関連を辿った</td><td>Service内で必要な関連は事前ロード or <code>@Transactional</code> を見直す</td></tr>
+  <tr><td>同じ観測値が重複INSERT</td><td>UNIQUE制約は守られるが例外が出る</td><td>existsBy で事前チェック</td></tr>
+  <tr><td>日時が9時間ずれて見える</td><td>TIMESTAMPTZのUTC保存とJVM TZのズレ</td><td><code>application.yml</code> の <code>jdbc.time_zone: UTC</code> 設定確認</td></tr>
+  <tr><td>RestClient で文字化け</td><td>レスポンスの文字コードを <code>String</code> で受けたが Shift-JIS だった</td><td><code>byte[]</code> で受けて明示的にデコード</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="selfcheck">4. 理解度チェック</h2>
+
+<details>
+<summary>Q1. なぜ Entity と DTO を分けるのか？</summary>
+<p><strong>答え：</strong> 外部APIの仕様変更（カラム追加・型変更）が永続化層に直接波及するのを防ぐため。境界で受けるDTOが盾になる。Phase 4 のDDDで言う「腐敗防止層（Anti-Corruption Layer）」の入り口。</p>
+</details>
+
+<details>
+<summary>Q2. <code>@ManyToOne</code> のデフォルトのフェッチ戦略は EAGER か LAZY か？</summary>
+<p><strong>答え：</strong> EAGER（即時ロード）。これが意外と落とし穴。多くの実務では LAZY に変えるのが定石。<code>@ManyToOne(fetch = FetchType.LAZY)</code> と明示する。</p>
+</details>
+
+<details>
+<summary>Q3. なぜ pollen_count の欠測値 <code>-9999</code> をスキップするのか？DBに保存して後で除外ではダメか？</summary>
+<p><strong>答え：</strong> 「観測値テーブルの整合性」と「ドメインの意味」を一致させるため。<code>pollen_count</code> は「実測された花粉数」と意味づけしたなら、欠測はそもそも入れないのが正しい。Phase 4 で値オブジェクトに昇格させた時、「pollen_count は非負整数」というルールが綺麗に書ける。</p>
+</details>
+
+<details>
+<summary>Q4. <code>@Transactional</code> は Service と Repository どちらに付けるべきか？</summary>
+<p><strong>答え：</strong> 通常は Service（ユースケース境界）。Repository に付けるとトランザクション境界が細かくなりすぎ、複数Repository呼出が別トランザクションになり整合性が崩れる。</p>
+</details>
+
+<details>
+<summary>Q5. Phase 1 で「動く貧弱なコード」を作る理由は？</summary>
+<p><strong>答え：</strong> CLAUDE.md にもある通り、まず動くものを作って全体の流れを掴むため。設計を最初から考えすぎると進まない。Phase 4 でリファクタする題材になる。</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="next">5. 次のアクション</h2>
+
+<div class="implementation">
+<p><strong>推奨着手順序：</strong></p>
+<ol>
+  <li><strong>今すぐ</strong>：Step 1（Entity）から始める。Lombokを使うか、ID生成戦略をIDENTITYかSEQUENCEか、日時型を何にするか、を決めてから書き始める。</li>
+  <li>書いたら <code>./gradlew bootRun</code> で起動成功を確認（<code>validate</code> がスキーマ一致を保証してくれる）</li>
+  <li>Claudeにレビュー依頼（「書いてみたコード、レビューして」）</li>
+  <li>Step 2 → 3 → 4 → 5 → 6 と進む</li>
+</ol>
+</div>
+
+<div class="tip">
+  <strong>Claudeへの依頼例：</strong>
+  <ul>
+    <li>「ID生成戦略 IDENTITY と SEQUENCE の違いを教えて」</li>
+    <li>「ObservationPoint を書いたのでレビューして」</li>
+    <li>「Schema-validation エラーが出た、ここまで書いた」</li>
+    <li>「@ManyToOne のフェッチ戦略、どっちにすべき？」</li>
+  </ul>
+  <strong>避けるべき依頼：</strong>「Entity全部書いて」「Phase 1のコード全部書いて」
+</div>
+
+<hr style="margin: 3rem 0;">
+<p style="text-align: center; color: #6b7280; font-size: 0.9em;">花粉通知アプリ Phase 1 学習ガイド ／ Generated 2026-05-25</p>
+
+</body>
+</html>

@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>JPAアノテーション リファレンス | 花粉通知アプリ</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+         max-width: 980px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.75; color: #1f2937; background: #fafafa; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.6rem; font-size: 1.8rem; }
+  h2 { border-left: 6px solid #2563eb; padding-left: 0.7rem; margin-top: 2.8rem; font-size: 1.4rem; }
+  h3 { color: #1e40af; margin-top: 1.5rem; font-size: 1.15rem; }
+  h4 { color: #475569; margin-top: 1rem; font-size: 1rem; }
+  .term { border-bottom: 1.5px dotted #2563eb; cursor: help; font-weight: 600; }
+  .concept { background: #ecfdf5; border-left: 4px solid #10b981; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .implementation { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .danger { background: #fee2e2; border-left: 4px solid #ef4444; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .tip { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; background: white; font-size: 0.92em; }
+  th, td { border: 1px solid #d1d5db; padding: 0.5rem 0.75rem; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  code { background: #f3f4f6; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: Consolas, monospace; }
+  pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.85em; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .toc { background: white; border: 1px solid #e5e7eb; padding: 1rem 1.5rem; border-radius: 6px; margin: 1.5rem 0; }
+  .toc ol { margin: 0.3rem 0; padding-left: 1.4rem; }
+  .toc a { color: #2563eb; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  details { background: white; padding: 0.7rem 1rem; border: 1px solid #e5e7eb; border-radius: 4px; margin: 0.5rem 0; }
+  summary { cursor: pointer; font-weight: bold; color: #1e40af; }
+  .pros { color: #047857; }
+  .cons { color: #b91c1c; }
+  .annotation-card { background: white; border: 1px solid #d1d5db; border-radius: 6px; padding: 1.2rem 1.5rem; margin: 1.5rem 0; }
+  .annotation-card h2 { margin-top: 0; }
+  .signature { background: #1e293b; color: #93c5fd; padding: 0.4rem 0.7rem; border-radius: 4px; display: inline-block; font-family: Consolas, monospace; font-size: 0.95rem; margin: 0.4rem 0; }
+  .badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: bold; margin-left: 0.3rem; vertical-align: middle; }
+  .badge-required { background: #dc2626; color: white; }
+  .badge-recommended { background: #2563eb; color: white; }
+  .badge-optional { background: #6b7280; color: white; }
+  .badge-trap { background: #f59e0b; color: white; }
+  .phase4-hint { background: #fdf4ff; border: 1px dashed #c026d3; padding: 0.6rem 1rem; border-radius: 4px; font-size: 0.9em; color: #86198f; margin: 0.8rem 0; }
+  .phase4-hint::before { content: "🔮 Phase 4への伏線: "; font-weight: bold; }
+  a.docref { color: #2563eb; font-size: 0.88em; }
+  hr { border: none; border-top: 1px dashed #cbd5e1; margin: 1.5rem 0; }
+</style>
+</head>
+<body>
+
+<h1>JPAアノテーション リファレンス（花粉通知アプリ Phase 1 用）</h1>
+<p>Step 1（Entity）を書く時の参照資料／2026-05-27 作成</p>
+
+<div class="concept">
+  <strong>使い方：</strong> 各アノテーションについて<strong>用途・使用例・メリット・デメリット・本プロジェクトでの推奨</strong>を示します。コードを書き始める前に <span class="term" title="Entity全体の宣言系">必須3点</span>（<code>@Entity</code>, <code>@Id</code>, <code>@GeneratedValue</code>）から読み、必要に応じて他を参照してください。
+</div>
+
+<div class="toc">
+  <strong>📚 目次</strong>
+  <ol>
+    <li><a href="#entity">@Entity</a> <span class="badge badge-required">必須</span></li>
+    <li><a href="#table">@Table</a> <span class="badge badge-recommended">推奨</span></li>
+    <li><a href="#id">@Id</a> <span class="badge badge-required">必須</span></li>
+    <li><a href="#generated">@GeneratedValue</a> <span class="badge badge-required">必須</span></li>
+    <li><a href="#sequencegen">@SequenceGenerator</a> <span class="badge badge-recommended">SEQUENCE採用時必須</span></li>
+    <li><a href="#column">@Column</a> <span class="badge badge-recommended">推奨</span></li>
+    <li><a href="#manytoone">@ManyToOne</a> <span class="badge badge-required">FK必須</span></li>
+    <li><a href="#joincolumn">@JoinColumn</a> <span class="badge badge-recommended">推奨</span></li>
+    <li><a href="#uniqueconstraint">@UniqueConstraint（@Table内）</a> <span class="badge badge-optional">DDL一致用</span></li>
+    <li><a href="#bonus">補足：その他見かけるアノテーション</a></li>
+    <li><a href="#minimum">最小構成テンプレ（手で書き起こす出発点）</a></li>
+    <li><a href="#selfcheck">理解度チェック</a></li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<div class="annotation-card">
+<h2 id="entity">1. @Entity <span class="badge badge-required">必須</span></h2>
+
+<h3>用途</h3>
+<p>クラスを <span class="term" title="Java Persistence API。JavaオブジェクトをRDBに対応付ける標準。">JPA</span> 管理対象（=テーブルに対応するクラス）として宣言する。</p>
+
+<h3>シグネチャ</h3>
+<div class="signature">@Entity(name = "...")</div>
+<p><code>name</code> 属性は省略可（省略時はクラス名がそのまま<span class="term" title="JPQL（JPAのクエリ言語）でクラスを参照する時の名前。">エンティティ名</span>になる）。</p>
+
+<h3>使用例</h3>
+<pre><code>@Entity
+public class ObservationPoint {
+    // ...
+}</code></pre>
+
+<h3>メリット / デメリット</h3>
+<table>
+<tr><th>観点</th><th>評価</th></tr>
+<tr><td class="pros">付けるとSpring Data JPAが自動でCRUD対象として認識</td><td>Repository から型指定するだけで使える</td></tr>
+<tr><td class="cons">JPA仕様の制約を負う</td><td>引数なしコンストラクタ必須、<code>final</code>クラス不可など</td></tr>
+</table>
+
+<h3>本プロジェクトでの推奨</h3>
+<div class="implementation">
+<code>@Entity</code> のみ。<code>name</code>属性は付けない（クラス名 = エンティティ名で十分）。
+</div>
+
+<p class="docref">📖 <a href="https://jakarta.ee/specifications/persistence/3.1/jakarta-persistence-spec-3.1#a55" target="_blank">Jakarta Persistence Spec - Entity</a></p>
+</div>
+
+<!-- ============================================================ -->
+<div class="annotation-card">
+<h2 id="table">2. @Table <span class="badge badge-recommended">推奨</span></h2>
+
+<h3>用途</h3>
+<p>Entityがマップされるテーブル名・スキーマ・複合UNIQUE制約を指定する。</p>
+
+<h3>シグネチャ</h3>
+<div class="signature">@Table(name = "...", schema = "...", uniqueConstraints = {...}, indexes = {...})</div>
+
+<h3>使用例</h3>
+<pre><code>@Entity
+@Table(name = "observation_points")
+public class ObservationPoint { ... }</code></pre>
+
+<p>複合UNIQUE制約の指定例（PollenMeasurement の <code>uq_measurement</code>に対応）：</p>
+<pre><code>@Entity
+@Table(name = "pollen_measurements",
+       uniqueConstraints = @UniqueConstraint(
+           name = "uq_measurement",
+           columnNames = {"observation_point_id", "measured_at"}
+       ))
+public class PollenMeasurement { ... }</code></pre>
+
+<h3>メリット / デメリット</h3>
+<table>
+<tr><th>観点</th><th>説明</th></tr>
+<tr><td class="pros">テーブル名がスネークケース、クラス名がパスカルケース、という変換ルールから外れても明示できる</td><td>本プロジェクトは <code>ObservationPoint</code> → <code>observation_points</code> と複数形＋スネークケース。Hibernateの自動変換でも一致する可能性はあるが、<strong>明示的な方が誤解を防ぐ</strong>。</td></tr>
+<tr><td class="pros">UNIQUE制約を Entity 側に書ける</td><td>DDL（Flyway）と二重管理になるが、Entity定義を読むだけでテーブルの不変条件が分かる利点</td></tr>
+<tr><td class="cons">DDL二重管理</td><td>真実は Flyway 側。Entity側の<code>uniqueConstraints</code>は<code>ddl-auto: validate</code>で検証されない（あくまでcreate/update時の生成用）</td></tr>
+</table>
+
+<h3>本プロジェクトでの推奨</h3>
+<div class="implementation">
+<ul>
+  <li><code>@Table(name = "...")</code> は必ず付ける（テーブル名の明示）</li>
+  <li><code>uniqueConstraints</code> は<strong>付けても付けなくてもOK</strong>。付ける場合は「ドキュメント目的」と割り切る。実際の制約は Flyway の V1__init.sql 側で定義済</li>
+</ul>
+</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="annotation-card">
+<h2 id="id">3. @Id <span class="badge badge-required">必須</span></h2>
+
+<h3>用途</h3>
+<p>主キーフィールドを指定する。Entityには<strong>必ず1つ</strong>必要。</p>
+
+<h3>使用例</h3>
+<pre><code>@Id
+private Long id;</code></pre>
+
+<h3>注意点</h3>
+<div class="warning">
+<ul>
+  <li>型は <code>Long</code> 推奨（プリミティブ <code>long</code> ではない）。理由：JPAは「未永続化＝idがnull」で判定するため、nullになれる必要がある</li>
+  <li>複合主キーは <code>@IdClass</code> または <code>@EmbeddedId</code> で表現。本プロジェクトでは代理キー単独なので不要</li>
+</ul>
+</div>
+
+<h3>本プロジェクトでの推奨</h3>
+<div class="implementation">
+<code>private Long id;</code> に <code>@Id</code> を付ける。両Entity共通。
+</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="annotation-card">
+<h2 id="generated">4. @GeneratedValue <span class="badge badge-required">必須</span></h2>
+
+<h3>用途</h3>
+<p>主キー値を誰がいつ採番するかを指定する。</p>
+
+<h3>シグネチャ</h3>
+<div class="signature">@GeneratedValue(strategy = GenerationType.XXX, generator = "...")</div>
+
+<h3>主要な strategy</h3>
+<table>
+<tr><th>strategy</th><th>動作</th><th>本プロジェクト適合</th></tr>
+<tr><td><code>IDENTITY</code></td><td>DBのauto_increment / SERIAL に委譲。INSERT時に採番</td><td>△ batch insertが効かない</td></tr>
+<tr><td><code>SEQUENCE</code></td><td>DBのSEQUENCEオブジェクトを使う。INSERT前に番号取得</td><td>✅ 採用</td></tr>
+<tr><td><code>TABLE</code></td><td>採番用テーブルを使う。レガシー</td><td>❌ 使わない</td></tr>
+<tr><td><code>AUTO</code></td><td>ベンダー任せ</td><td>❌ 明示性なし。避ける</td></tr>
+<tr><td><code>UUID</code></td><td>Java側でUUID生成（Hibernate 6.2+）</td><td>❌ 今回は連番ID</td></tr>
+</table>
+
+<h3>使用例（SEQUENCE採用）</h3>
+<pre><code>@Id
+@GeneratedValue(strategy = GenerationType.SEQUENCE,
+                generator = "observation_points_id_seq")
+@SequenceGenerator(name = "observation_points_id_seq",
+                   sequenceName = "observation_points_id_seq",
+                   allocationSize = 1)
+private Long id;</code></pre>
+
+<h3>メリット / デメリット（SEQUENCE視点）</h3>
+<table>
+<tr><th>観点</th><th>評価</th></tr>
+<tr><td class="pros">事前にIDが確定する</td><td><code>equals(of="id")</code> 戦略と矛盾しない（未保存でも比較可能）</td></tr>
+<tr><td class="pros">batch insertが効く</td><td>大量INSERTの性能向上</td></tr>
+<tr><td class="cons">SEQUENCE名がDBと一致してないと起動失敗</td><td>BIGSERIALは <code>&lt;テーブル名&gt;_&lt;カラム名&gt;_seq</code> の命名でSEQUENCEが自動作成される</td></tr>
+<tr><td class="cons">allocationSize 不一致で番号飛び <span class="badge badge-trap">罠</span></td><td>下の @SequenceGenerator 項参照</td></tr>
+</table>
+
+<h3>本プロジェクトでの推奨</h3>
+<div class="implementation">
+<code>strategy = GenerationType.SEQUENCE</code> + 後述の <code>@SequenceGenerator</code> を併用。
+</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="annotation-card">
+<h2 id="sequencegen">5. @SequenceGenerator <span class="badge badge-recommended">SEQUENCE採用時必須</span></h2>
+
+<h3>用途</h3>
+<p>JPA側でSEQUENCEの詳細（名前、確保サイズ）を定義する。</p>
+
+<h3>シグネチャ</h3>
+<div class="signature">@SequenceGenerator(name = "...", sequenceName = "...", allocationSize = N, initialValue = N)</div>
+
+<table>
+<tr><th>属性</th><th>意味</th></tr>
+<tr><td><code>name</code></td><td>JPA内部での識別子。<code>@GeneratedValue(generator=...)</code>と一致させる</td></tr>
+<tr><td><code>sequenceName</code></td><td>DB上の実SEQUENCE名。<strong>BIGSERIALが裏で作るSEQUENCEの名前と一致必須</strong></td></tr>
+<tr><td><code>allocationSize</code></td><td>1回のnextval()で何個ID予約するか</td></tr>
+<tr><td><code>initialValue</code></td><td>初期値（既にDB側で決まっていれば指定不要）</td></tr>
+</table>
+
+<h3>BIGSERIAL が裏で作るSEQUENCE名</h3>
+<p>テーブル <code>observation_points</code> でカラム <code>id</code> を <code>BIGSERIAL</code> にした場合、PostgreSQLが自動で作るSEQUENCE名は：</p>
+<pre><code>observation_points_id_seq</code></pre>
+<p>確認コマンド：</p>
+<pre><code>docker compose exec db psql -U pollen -d pollen_notify -c "\ds"</code></pre>
+
+<h3>allocationSize の罠 <span class="badge badge-trap">注意</span></h3>
+<div class="danger">
+<p><strong>Hibernate のデフォルト <code>allocationSize</code> は 50</strong>。これは「Hibernate が DB の SEQUENCE を 1回 nextval して、その値から 50 個分を自分で割り当てる」という最適化。</p>
+<p>一方、<code>BIGSERIAL</code> が作る SEQUENCE のデフォルト <code>INCREMENT</code> は <strong>1</strong>。</p>
+<p>この2つが不一致だと：</p>
+<ul>
+  <li>Hibernate: nextval() で 1 を取得 → 自分で 1〜50 を割り当てる気でいる</li>
+  <li>DB側: 次の nextval() で 2 を返す（Hibernateの予約 2〜50 と衝突）</li>
+  <li>結果：<strong>重複ID または 番号飛び</strong></li>
+</ul>
+<p><strong>解決策2択：</strong></p>
+<ol>
+  <li><strong>(推奨)</strong> JPA側を <code>allocationSize = 1</code> にする：性能は落ちるが安全。学習段階はこれ</li>
+  <li>DB側のSEQUENCEを <code>ALTER SEQUENCE ... INCREMENT BY 50</code> して JPA も <code>allocationSize = 50</code> にする：性能◎だが二重管理</li>
+</ol>
+</div>
+
+<h3>本プロジェクトでの推奨</h3>
+<div class="implementation">
+<code>allocationSize = 1</code> でスタート。性能が必要になったらDDLと一緒に変更。
+</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="annotation-card">
+<h2 id="column">6. @Column <span class="badge badge-recommended">推奨</span></h2>
+
+<h3>用途</h3>
+<p>カラム名・NULL許可・UNIQUE・長さ・精度などを明示する。</p>
+
+<h3>シグネチャ（主要属性）</h3>
+<div class="signature">@Column(name = "...", nullable = false, unique = true, length = N, precision = N, scale = N)</div>
+
+<h3>使用例</h3>
+<pre><code>@Column(name = "external_id", nullable = false, unique = true, length = 64)
+private String externalId;
+
+@Column(nullable = false, length = 128)
+private String name;
+
+@Column(precision = 9, scale = 6)
+private BigDecimal latitude;
+
+@Column(name = "created_at", nullable = false)
+private Instant createdAt;</code></pre>
+
+<h3>主要属性のメリット / デメリット</h3>
+<table>
+<tr><th>属性</th><th>使う理由</th><th>注意</th></tr>
+<tr><td><code>name</code></td><td>Javaフィールド名（camelCase）→ DBカラム名（snake_case）の対応を明示</td><td>Hibernateの自動命名規則でも一致する場合は省略可。だが明示が安全</td></tr>
+<tr><td><code>nullable</code></td><td>DDLとEntityの整合を表現</td><td><code>ddl-auto: validate</code>では <strong>nullable は検証されない</strong> ことに注意（生成時にしか効かない）</td></tr>
+<tr><td><code>unique</code></td><td>単一カラムUNIQUE</td><td>複合UNIQUEは <code>@Table.uniqueConstraints</code> へ</td></tr>
+<tr><td><code>length</code></td><td>VARCHAR長の明示</td><td>DDLと不一致でも validate ではエラーにならない（型の長さは検査されない）</td></tr>
+<tr><td><code>precision / scale</code></td><td>NUMERIC型の精度</td><td><code>BigDecimal</code>使用時に必須級</td></tr>
+</table>
+
+<div class="warning">
+<strong>誤解されがちな点：</strong> <code>@Column</code> の属性の多くは「Hibernateがテーブルを生成する時のヒント」であり、<code>ddl-auto: validate</code> モードでは<strong>カラムの存在</strong>と<strong>型カテゴリ</strong>くらいしか検証されません。「<code>nullable = false</code> と書いたから安心」ではなく、<strong>真の制約は Flyway の DDL 側</strong>です。
+</div>
+
+<h3>本プロジェクトでの推奨</h3>
+<div class="implementation">
+<ul>
+  <li>フィールド名と DB カラム名が一致しない場合（snake_case変換が発生）は <code>name</code> を明示</li>
+  <li>BigDecimalフィールドには <code>precision</code>, <code>scale</code> を必ず指定</li>
+  <li><code>nullable</code> は<strong>ドキュメント目的</strong>で書いてOK（読み手への意図伝達）</li>
+</ul>
+</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="annotation-card">
+<h2 id="manytoone">7. @ManyToOne <span class="badge badge-required">FK必須</span></h2>
+
+<h3>用途</h3>
+<p>「多 : 1」の関連を表現する。<code>PollenMeasurement</code>（多） → <code>ObservationPoint</code>（1）が今回のケース。</p>
+
+<h3>シグネチャ</h3>
+<div class="signature">@ManyToOne(fetch = FetchType.LAZY, optional = false, cascade = {})</div>
+
+<h3>使用例</h3>
+<pre><code>@ManyToOne(fetch = FetchType.LAZY, optional = false)
+@JoinColumn(name = "observation_point_id", nullable = false)
+private ObservationPoint observationPoint;</code></pre>
+
+<h3>主要属性</h3>
+<table>
+<tr><th>属性</th><th>意味</th><th>本プロジェクト推奨</th></tr>
+<tr><td><code>fetch</code></td><td>関連の取得タイミング。<code>LAZY</code>（必要になったらSQL発行）/<code>EAGER</code>（即時取得）</td><td><strong>LAZY 必須</strong>。デフォルトはEAGERという罠あり</td></tr>
+<tr><td><code>optional</code></td><td>関連が必須か（false なら必須＝NULL不可）</td><td>FKがNOT NULLなので <code>false</code></td></tr>
+<tr><td><code>cascade</code></td><td>親操作の連鎖（例：保存時に関連も保存）</td><td>使わない。明示制御の方が安全</td></tr>
+</table>
+
+<h3>メリット / デメリット</h3>
+<table>
+<tr><th>観点</th><th>説明</th></tr>
+<tr><td class="pros">関連先オブジェクトをJavaで素直に扱える</td><td><code>measurement.getObservationPoint().getName()</code> で参照可</td></tr>
+<tr><td class="cons">EAGERの罠</td><td><strong><code>@ManyToOne</code> はデフォルトEAGER</strong>。<code>LAZY</code>を明示しないと、Measurementを1件取るたびにObservationPointも自動取得 → N+1問題の温床</td></tr>
+<tr><td class="cons">LazyInitializationException</td><td>トランザクション外で <code>measurement.getObservationPoint()</code> を呼ぶと例外。Service内（@Transactional内）で必要な情報を取り切る必要</td></tr>
+</table>
+
+<div class="danger">
+<strong>⚠ 双方向にしない</strong><br>
+<code>ObservationPoint</code> 側に <code>List&lt;PollenMeasurement&gt;</code> を持たせる（<code>@OneToMany(mappedBy=...)</code>）誘惑があるが、<strong>避ける</strong>。理由：
+<ul>
+  <li>地点の観測値は何万件にもなる → 全件ロードしたら破滅</li>
+  <li>「地点を起点に観測値を取りたい」なら <code>PollenMeasurementRepository.findByObservationPoint(...)</code> を書けば良い</li>
+  <li>双方向は<span class="term" title="親子の整合を保つために両方を更新する手間。">同期メソッド</span>が必要になり複雑化</li>
+</ul>
+</div>
+
+<h3>本プロジェクトでの推奨</h3>
+<div class="implementation">
+<code>@ManyToOne(fetch = LAZY, optional = false)</code> + <code>@JoinColumn</code>。逆方向の <code>@OneToMany</code> は<strong>持たせない</strong>。
+</div>
+
+<p class="docref">📖 <a href="https://vladmihalcea.com/the-best-way-to-map-a-manytoone-association-with-jpa-and-hibernate/" target="_blank">@ManyToOneマッピングのベストプラクティス (Vlad Mihalcea)</a></p>
+</div>
+
+<!-- ============================================================ -->
+<div class="annotation-card">
+<h2 id="joincolumn">8. @JoinColumn <span class="badge badge-recommended">推奨</span></h2>
+
+<h3>用途</h3>
+<p>FK列の名前・NULL許可などを指定する。<code>@ManyToOne</code>とセットで使う。</p>
+
+<h3>シグネチャ</h3>
+<div class="signature">@JoinColumn(name = "...", nullable = false, referencedColumnName = "...")</div>
+
+<h3>使用例</h3>
+<pre><code>@JoinColumn(name = "observation_point_id", nullable = false)</code></pre>
+
+<h3>メリット / デメリット</h3>
+<table>
+<tr><th>観点</th><th>説明</th></tr>
+<tr><td class="pros">FK列名を明示できる</td><td>Java側フィールド名は <code>observationPoint</code>、DB側カラム名は <code>observation_point_id</code> という命名差を埋める</td></tr>
+<tr><td class="pros">読み手にDB構造が伝わる</td><td>Entity定義を読むだけでテーブル間の関係が見える</td></tr>
+<tr><td class="cons">省略すると Hibernate のデフォルト命名規則で推測される</td><td>意図しない名前になり validate で失敗することがある</td></tr>
+</table>
+
+<h3>本プロジェクトでの推奨</h3>
+<div class="implementation">
+必ず <code>@JoinColumn(name = "observation_point_id", nullable = false)</code> を <code>@ManyToOne</code> の直下に書く。
+</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="annotation-card">
+<h2 id="uniqueconstraint">9. @UniqueConstraint（@Table 内で使う） <span class="badge badge-optional">DDL一致用</span></h2>
+
+<h3>用途</h3>
+<p>複合UNIQUE制約をJPA側で宣言する。単一カラムなら <code>@Column(unique=true)</code> で済むので、これは「2カラム以上のUNIQUE」用。</p>
+
+<h3>使用例</h3>
+<pre><code>@Table(name = "pollen_measurements",
+       uniqueConstraints = @UniqueConstraint(
+           name = "uq_measurement",
+           columnNames = {"observation_point_id", "measured_at"}
+       ))
+public class PollenMeasurement { ... }</code></pre>
+
+<h3>メリット / デメリット</h3>
+<table>
+<tr><th>観点</th><th>説明</th></tr>
+<tr><td class="pros">Entity定義を読めば「この組み合わせは一意」と分かる</td><td>ドキュメント効果</td></tr>
+<tr><td class="cons">validateモードでは検証されない</td><td>実体はFlyway側のDDLが真実</td></tr>
+<tr><td class="cons">DDL二重管理</td><td>変更時にFlywayとEntity両方を直す必要</td></tr>
+</table>
+
+<h3>本プロジェクトでの推奨</h3>
+<div class="implementation">
+書いてもよいが、必須ではない。書く場合は<strong>「読み手のためのドキュメント」</strong>と割り切る。
+</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="annotation-card">
+<h2 id="bonus">10. 補足：その他見かけるアノテーション</h2>
+
+<table>
+<tr><th>アノテーション</th><th>用途</th><th>本プロジェクト使用</th></tr>
+<tr><td><code>@Version</code></td><td>楽観的ロック用の版番号フィールド</td><td>Phase 1 では不要。Phase 3の同時更新対策で検討</td></tr>
+<tr><td><code>@Enumerated(EnumType.STRING)</code></td><td>Java enumをVARCHARで保存</td><td>今は使うフィールドなし</td></tr>
+<tr><td><code>@Embedded</code> / <code>@Embeddable</code></td><td>複合値の埋め込み（例：住所をクラスとして持ちつつ複数カラムに展開）</td><td>Phase 4 で値オブジェクト化する時に登場予定</td></tr>
+<tr><td><code>@CreationTimestamp</code> / <code>@UpdateTimestamp</code></td><td>Hibernate拡張。<code>created_at</code> / <code>updated_at</code> を自動セット</td><td><strong>使わない</strong>。DDL側で <code>DEFAULT NOW()</code> 済みなので、Entity側は何もしなくて良い。むしろ二重管理になる</td></tr>
+<tr><td><code>@PrePersist</code> / <code>@PreUpdate</code></td><td>永続化前後のフック</td><td>Phase 1では不要</td></tr>
+<tr><td><code>@Transient</code></td><td>「このフィールドはDBに保存しない」</td><td>今は不要</td></tr>
+</table>
+
+<div class="warning">
+<strong>created_at / updated_at の扱い注意</strong><br>
+DDL側に <code>DEFAULT NOW()</code> を設定済み。つまりINSERT時に明示的に値を与えなくてもDBが入れてくれる。<br>
+Entity側で <code>@CreationTimestamp</code> を使ったり、コンストラクタで <code>Instant.now()</code> をセットしたりすると、<strong>2箇所で時刻決定の責務</strong>を持つことになり、わずかなずれが生まれる可能性。<br>
+推奨：<strong>Entity側では一切セットしない</strong>。getterだけ用意して、DB側に任せる。
+</div>
+
+<div class="phase4-hint">
+Phase 4で <span class="term" title="DDD用語。エンティティ作成時刻の意味付け（例：注文作成時刻）。">監査属性（audit fields）</span>を「ドメイン的に意味のあるタイミングで自分で設定する」リファクタが入ることもあります（例：「観測時刻」と「DB登録時刻」は別物として明示）。
+</div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="minimum">11. 最小構成テンプレ（手で書き起こす出発点）</h2>
+
+<div class="implementation">
+<p>以下は<strong>「ここから書き始めればOK」</strong>のたたき台。空欄部分（<code>// TODO</code>）は<strong>あなたが埋める</strong>。アノテーションの選択理由を上から確認しながら、自分の判断で書いてください。</p>
+</div>
+
+<h3>ObservationPoint.java（型枠のみ）</h3>
+<pre><code>package com.fuku.pollen_notify.entity;
+
+// import 文は自分で書く（IDE任せでOK）
+
+@Entity
+@Table(name = "observation_points")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@EqualsAndHashCode(of = "id")
+public class ObservationPoint {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE,
+                    generator = "observation_points_id_seq")
+    @SequenceGenerator(name = "observation_points_id_seq",
+                       sequenceName = "observation_points_id_seq",
+                       allocationSize = 1)
+    private Long id;
+
+    // TODO: external_id (citycode を入れる。VARCHAR(64), NOT NULL, UNIQUE)
+    // TODO: name (VARCHAR(128), NOT NULL)
+    // TODO: latitude (NUMERIC(9,6), NULL可)
+    // TODO: longitude (NUMERIC(9,6), NULL可)
+    // TODO: createdAt (TIMESTAMPTZ → Instant)
+    // TODO: updatedAt (TIMESTAMPTZ → Instant)
+
+    // TODO: ファクトリメソッド or コンストラクタ（外部から作る方法）
+    //       例: public static ObservationPoint of(String externalId, String name, ...) { ... }
+
+    // TODO: 状態変更メソッド（必要なら）
+    //       例: public void updateLocation(BigDecimal lat, BigDecimal lon) { ... }
+}</code></pre>
+
+<h3>PollenMeasurement.java（型枠のみ）</h3>
+<pre><code>package com.fuku.pollen_notify.entity;
+
+@Entity
+@Table(name = "pollen_measurements")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@EqualsAndHashCode(of = "id")
+public class PollenMeasurement {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE,
+                    generator = "pollen_measurements_id_seq")
+    @SequenceGenerator(name = "pollen_measurements_id_seq",
+                       sequenceName = "pollen_measurements_id_seq",
+                       allocationSize = 1)
+    private Long id;
+
+    // TODO: @ManyToOne で observationPoint （LAZY, optional=false）
+    //       + @JoinColumn(name = "observation_point_id", nullable = false)
+    // TODO: measuredAt (TIMESTAMPTZ → Instant)
+    // TODO: pollenCount (INTEGER → int? Integer?)
+    // TODO: createdAt (TIMESTAMPTZ → Instant)
+
+    // TODO: ファクトリメソッド
+    //       例: public static PollenMeasurement of(ObservationPoint point, Instant measuredAt, int count) { ... }
+    //       ここで「pollenCount が負数 や -9999 ならエラーにする」など、ドメインルールも書ける
+}</code></pre>
+
+<div class="tip">
+<strong>ファクトリメソッドのヒント：</strong> <code>new PollenMeasurement(...)</code> を public で許すと、外から好きな状態のインスタンスが作れてしまう。<code>private</code> コンストラクタ + <code>public static of(...)</code> で「正しい状態のものしか作れない」を強制できる。これがOOP的な<span class="term" title="不正な状態を作れないように仕組みで防ぐ設計。">不変条件の保護</span>。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="selfcheck">12. 理解度チェック</h2>
+
+<details>
+<summary>Q1. @ManyToOne のデフォルトのフェッチ戦略は？</summary>
+<p><strong>答え：</strong> EAGER（即時取得）。明示的に <code>fetch = FetchType.LAZY</code> を指定しないと、N+1問題やパフォーマンス劣化の原因になる。</p>
+</details>
+
+<details>
+<summary>Q2. @Column(nullable = false) と書けば、テーブルに NOT NULL 制約が保証される？</summary>
+<p><strong>答え：</strong> いいえ。<code>nullable</code> は Hibernate がテーブルを<strong>生成する時の</strong>ヒントであり、<code>ddl-auto: validate</code> モードでは検証されない。真のNOT NULL制約は Flyway の DDL 側で定義される。</p>
+</details>
+
+<details>
+<summary>Q3. allocationSize の値が DB の SEQUENCE の INCREMENT と異なるとどうなる？</summary>
+<p><strong>答え：</strong> Hibernate が予約したID範囲と、DBが次に返すIDが衝突して、重複ID や 番号飛び が発生する。両者は必ず一致させる必要がある。</p>
+</details>
+
+<details>
+<summary>Q4. なぜ ObservationPoint に List&lt;PollenMeasurement&gt; を持たせない方が良い？</summary>
+<p><strong>答え：</strong> (1) 観測値は時系列で大量に蓄積するので全件ロードは破滅的、(2) 必要なら Repository 側で <code>findByObservationPoint(...)</code> を書けば取れる、(3) 双方向関連は<span class="term" title="親と子の両側を整合的に更新する手間。">同期メソッド</span>を要するので複雑化する。</p>
+</details>
+
+<details>
+<summary>Q5. なぜ Entity の created_at を Java側でセットせず DB の DEFAULT NOW() に任せるべき？</summary>
+<p><strong>答え：</strong> 時刻決定の責務が2箇所（Java側のクロックとDB側のクロック）に分散すると、わずかなずれや矛盾が生まれる。<strong>「真実は1箇所に」</strong> という原則から、DB側に一元化する。Java側はgetterだけ用意して読み取り専用にする。</p>
+</details>
+
+<hr style="margin: 3rem 0;">
+<p style="text-align: center; color: #6b7280; font-size: 0.9em;">JPAアノテーション リファレンス ／ Phase 1 用 ／ 2026-05-27</p>
+
+</body>
+</html>
