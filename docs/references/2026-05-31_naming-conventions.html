@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>命名規則リファレンス | 花粉通知アプリ</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+         max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.75; color: #1f2937; background: #fafafa; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.5rem; font-size: 1.9rem; }
+  h2 { border-left: 5px solid #2563eb; padding-left: 0.6rem; margin-top: 2.6rem; font-size: 1.35rem; }
+  h3 { margin-top: 1.6rem; font-size: 1.1rem; color: #374151; }
+  .term { border-bottom: 1px dotted #2563eb; cursor: help; }
+  .concept { background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .implementation { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .danger { background: #fee2e2; border-left: 4px solid #ef4444; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .tip { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .user-task { background: #fff7ed; border: 1px dashed #f97316; padding: 0.8rem 1rem; margin: 1rem 0; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.95rem; }
+  th, td { border: 1px solid #d1d5db; padding: 0.5rem 0.8rem; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  code { background: #eef2f7; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: "Consolas", "Menlo", monospace; }
+  pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .toc { background: #f9fafb; border: 1px solid #e5e7eb; padding: 1rem 1.5rem; border-radius: 6px; }
+  .toc ol { margin: 0.3rem 0; }
+  .toc a { color: #2563eb; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  details { background: #f9fafb; padding: 0.8rem 1rem; border-radius: 4px; margin: 0.5rem 0; border: 1px solid #e5e7eb; }
+  summary { cursor: pointer; font-weight: bold; }
+  .diagram { margin: 1.5rem 0; text-align: center; }
+  .ok { color: #047857; font-weight: bold; }
+  .ng { color: #b91c1c; font-weight: bold; }
+  .ref-link { font-size: 0.88rem; color: #6b7280; margin-top: 0.6rem; }
+  .ref-link a { color: #2563eb; }
+  .badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 3px; font-size: 0.72rem; font-weight: bold; color: white; vertical-align: middle; }
+  .badge-java { background: #ea580c; }
+  .badge-db { background: #0891b2; }
+</style>
+</head>
+<body>
+
+<h1>🔤 命名規則リファレンス</h1>
+<p style="color:#6b7280;">花粉通知アプリ ／ 2026-05-31 ／ Phase 1 ／ Java + JPA + PostgreSQL</p>
+
+<div class="concept">
+<strong>なぜ命名規則を決めるのか</strong><br>
+命名は「未来の自分と読み手への手紙」です。規則がバラバラだと、<code>created_at</code> なのか <code>createdAt</code> なのかを毎回SQLとコードで照合する羽目になります（実際このプロジェクトで列名ミスのバグが起きました）。<strong>「どの層では何ケースを使うか」を一度決めて機械的に従う</strong>と、考える量が減り、バグも減ります。
+</div>
+
+<div class="toc">
+<strong>📑 目次</strong>
+<ol>
+  <li><a href="#cases">まず4つの命名ケースを覚える</a></li>
+  <li><a href="#java">Java 言語レベルの命名規則</a></li>
+  <li><a href="#bridge">最重要：Java（camelCase）↔ DB（snake_case）の変換</a></li>
+  <li><a href="#db">DB / SQL の命名規則</a></li>
+  <li><a href="#factory">ファクトリメソッドの命名（of / create / from）</a></li>
+  <li><a href="#project">このプロジェクトの実例で確認</a></li>
+  <li><a href="#pitfalls">やりがちな失敗（Phase 1）</a></li>
+  <li><a href="#check">理解度チェック</a></li>
+  <li><a href="#next">次にやること</a></li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="cases">1. まず4つの命名ケースを覚える</h2>
+<p>プログラミングの命名は、ほぼこの4種類の「区切り方」の組み合わせです。</p>
+
+<table>
+<tr><th>ケース名</th><th>見た目</th><th>区切り方</th><th>主にどこで使う</th></tr>
+<tr><td><strong>PascalCase</strong><br>（アッパーキャメル）</td><td><code>ObservationPoint</code></td><td>各単語の頭を大文字、区切りなし</td><td>クラス名・型名</td></tr>
+<tr><td><strong>camelCase</strong><br>（ローワーキャメル）</td><td><code>pollenCount</code></td><td>先頭だけ小文字、以降の単語頭は大文字</td><td>変数・メソッド・フィールド</td></tr>
+<tr><td><strong>snake_case</strong></td><td><code>pollen_count</code></td><td>全部小文字、単語を <code>_</code> で区切る</td><td>DBのテーブル・列名</td></tr>
+<tr><td><strong>UPPER_SNAKE_CASE</strong><br>（スクリーミングスネーク）</td><td><code>NO_DATA</code></td><td>全部大文字、<code>_</code> 区切り</td><td>定数（<code>static final</code>）</td></tr>
+</table>
+
+<div class="tip">
+🟣 <strong>覚え方</strong>：<span class="term" data-tooltip="Java界隈の慣習。言語仕様ではなくコミュニティの合意">Java側はキャメル系</span>、<span class="term" data-tooltip="リレーショナルDBの慣習。大文字小文字を区別しない環境が多いため小文字＋アンダースコアが安全">DB側はスネーク系</span>。この「世界が違う」ことが次章の変換の話につながります。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="java">2. Java 言語レベルの命名規則 <span class="badge badge-java">Java</span></h2>
+
+<table>
+<tr><th>対象</th><th>ケース</th><th>例</th><th>補足</th></tr>
+<tr><td>クラス / インターフェース / enum</td><td>PascalCase</td><td><code>ObservationPoint</code> <code>PollenMeasurement</code></td><td>名詞。役割が伝わる名前に</td></tr>
+<tr><td>メソッド</td><td>camelCase</td><td><code>getName()</code> <code>of()</code></td><td>動詞または動詞句で始めるのが基本</td></tr>
+<tr><td>変数 / フィールド</td><td>camelCase</td><td><code>externalId</code> <code>pollenCount</code></td><td>名詞。意味が分かる名前に</td></tr>
+<tr><td>定数</td><td>UPPER_SNAKE</td><td><code>private static final int NO_DATA = -9999;</code></td><td><code>static final</code> なものだけ</td></tr>
+<tr><td>パッケージ</td><td>全小文字</td><td><code>com.fuku.pollen_notify.entity</code></td><td>本来は <code>_</code> も使わないのが理想（後述）</td></tr>
+<tr><td>型パラメータ</td><td>大文字1字</td><td><code>T</code> <code>E</code> <code>K</code> <code>V</code></td><td>ジェネリクスで使用</td></tr>
+</table>
+
+<div class="concept">
+🟢 <strong>boolean の命名</strong>：状態を表す boolean は <code>is〜 / has〜 / can〜</code> で始めると、<code>if (point.isActive())</code> のように英語の文として読めます。
+</div>
+
+<div class="ref-link">📚 公式：<a href="https://docs.oracle.com/javase/specs/" target="_blank">Java Language Specification</a> ／ 慣習は <a href="https://google.github.io/styleguide/javaguide.html" target="_blank">Google Java Style Guide</a> が読みやすい</div>
+
+<!-- ============================================================ -->
+<h2 id="bridge">3. 最重要：Java ↔ DB の命名変換</h2>
+
+<p>ここがこのプロジェクトで一番事故った場所です。<strong>Javaのフィールドは camelCase、DBの列は snake_case</strong>。この橋渡しを <span class="term" data-tooltip="Java Persistence API。JavaオブジェクトとリレーショナルDBを対応づける仕様">JPA</span> / <span class="term" data-tooltip="JPAの代表的な実装。Spring Boot標準のORM">Hibernate</span> が自動でやってくれます。</p>
+
+<div class="diagram">
+<svg width="640" height="220" viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+  <!-- Java side -->
+  <rect x="20" y="30" width="240" height="160" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+  <text x="140" y="55" text-anchor="middle" font-size="14" font-weight="bold" fill="#9a3412">Java の世界（camelCase）</text>
+  <rect x="45" y="75" width="190" height="34" rx="4" fill="#ffffff" stroke="#fdba74"/>
+  <text x="140" y="97" text-anchor="middle" font-size="13" fill="#7c2d12" font-family="monospace">private String externalId;</text>
+  <rect x="45" y="120" width="190" height="34" rx="4" fill="#ffffff" stroke="#fdba74"/>
+  <text x="140" y="142" text-anchor="middle" font-size="13" fill="#7c2d12" font-family="monospace">private Instant createdAt;</text>
+
+  <!-- arrow -->
+  <line x1="265" y1="110" x2="375" y2="110" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="320" y="100" text-anchor="middle" font-size="11" fill="#374151">Hibernate</text>
+  <text x="320" y="128" text-anchor="middle" font-size="10" fill="#6b7280">自動変換</text>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#6b7280"/>
+    </marker>
+  </defs>
+
+  <!-- DB side -->
+  <rect x="380" y="30" width="240" height="160" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="500" y="55" text-anchor="middle" font-size="14" font-weight="bold" fill="#155e75">DB の世界（snake_case）</text>
+  <rect x="405" y="75" width="190" height="34" rx="4" fill="#ffffff" stroke="#67e8f9"/>
+  <text x="500" y="97" text-anchor="middle" font-size="13" fill="#164e63" font-family="monospace">external_id</text>
+  <rect x="405" y="120" width="190" height="34" rx="4" fill="#ffffff" stroke="#67e8f9"/>
+  <text x="500" y="142" text-anchor="middle" font-size="13" fill="#164e63" font-family="monospace">created_at</text>
+</svg>
+</div>
+
+<div class="implementation">
+🔵 <strong>仕組み</strong>：Hibernate の既定の<span class="term" data-tooltip="フィールド名から物理的な列名を決めるルール。Spring Bootの既定はSnakeCase戦略">命名戦略（PhysicalNamingStrategy）</span>が、<code>externalId</code> → <code>external_id</code> のように<strong>キャメル→スネークへ自動変換</strong>します。だから <code>@Column(name=...)</code> を<strong>書かなくても</strong>正しい列名に対応づきます。
+</div>
+
+<div class="danger">
+🔴 <strong>このプロジェクトで実際に起きたバグ</strong>：<code>@Column(name = "createdAt")</code> と<strong>手書きで</strong>キャメルのまま指定 → DBの実列名は <code>created_at</code> なので不一致 → 起動/クエリでエラー。<br>
+<strong>教訓：列名は「書かない（自動変換に任せる）」のが一番安全。</strong>もし書くなら必ず snake_case で、SQLの実列名と一字一句合わせる。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="db">4. DB / SQL の命名規則 <span class="badge badge-db">PostgreSQL</span></h2>
+
+<table>
+<tr><th>対象</th><th>規則</th><th>このプロジェクトの例</th></tr>
+<tr><td>テーブル名</td><td>snake_case・<strong>複数形</strong></td><td><code>observation_points</code> <code>pollen_measurements</code></td></tr>
+<tr><td>列名</td><td>snake_case</td><td><code>external_id</code> <code>pollen_count</code> <code>measured_at</code></td></tr>
+<tr><td>主キー</td><td><code>id</code></td><td><code>id BIGSERIAL PRIMARY KEY</code></td></tr>
+<tr><td>外部キー列</td><td><code>&lt;対象単数&gt;_id</code></td><td><code>observation_point_id</code></td></tr>
+<tr><td>シーケンス</td><td><code>&lt;table&gt;_&lt;col&gt;_seq</code></td><td><code>observation_points_id_seq</code></td></tr>
+<tr><td>一意制約</td><td><code>uq_&lt;意味&gt;</code></td><td><code>uq_measurement</code></td></tr>
+<tr><td>インデックス</td><td><code>idx_&lt;意味&gt;</code></td><td><code>idx_measurement_point_time</code></td></tr>
+</table>
+
+<div class="warning">
+🟡 <strong>なぜDBは小文字スネークか</strong>：多くのDBで、大文字を含む識別子は <code>"ExternalId"</code> のように<strong>毎回ダブルクォートが必要</strong>になり扱いづらい。全小文字＋アンダースコアなら引用符なしで安全に書けるため、慣習として定着しています。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="factory">5. ファクトリメソッドの命名</h2>
+<p>論点⑥で <code>of(...)</code> を採用しましたが、静的ファクトリには意味で使い分ける慣習名があります（JDK標準ライブラリの命名にならうと読み手に伝わりやすい）。</p>
+
+<table>
+<tr><th>名前</th><th>意味・使う場面</th><th>JDKの例</th></tr>
+<tr><td><code>of(...)</code></td><td>引数の値からそのまま作る（最も汎用）</td><td><code>List.of()</code> <code>Optional.of()</code></td></tr>
+<tr><td><code>from(...)</code></td><td>別の型から変換して作る</td><td><code>Instant.from()</code> <code>LocalDate.from()</code></td></tr>
+<tr><td><code>valueOf(...)</code></td><td>文字列/プリミティブから変換</td><td><code>Integer.valueOf()</code></td></tr>
+<tr><td><code>create() / newXxx()</code></td><td>毎回新しいインスタンスを作ることを強調</td><td>—</td></tr>
+<tr><td><code>getInstance()</code></td><td>同じインスタンスを返しうる（キャッシュ/シングルトン）</td><td><code>Calendar.getInstance()</code></td></tr>
+</table>
+
+<div class="tip">
+🟣 <strong>Phase 4 への伏線</strong>：DDDでは「<span class="term" data-tooltip="生成ロジックをまとめた専用クラス。複雑な組み立てや不変条件の検証を担う">ファクトリ</span>」が値オブジェクトや集約を正しく組み立てる役になります。今の <code>of()</code> に書いた「負数なら例外」のガード節が、その<strong>不変条件チェックの原型</strong>です。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="project">6. このプロジェクトの実例で確認</h2>
+
+<pre><code>// クラス：PascalCase
+public class PollenMeasurement {
+
+    // フィールド：camelCase（DB側は pollen_count に自動変換）
+    private int pollenCount;
+
+    // 定数：UPPER_SNAKE（API解析層で使う想定）
+    private static final int NO_DATA = -9999;
+
+    // 静的ファクトリ：of（引数からそのまま作る）
+    public static PollenMeasurement of(ObservationPoint observationPoint,
+                                       Instant at, int count) {
+        // ガード節：ローカル変数も camelCase
+        if (count &lt; 0) {
+            throw new IllegalArgumentException("pollenCount must be &gt;= 0 but was " + count);
+        }
+        ...
+    }
+}</code></pre>
+
+<table>
+<tr><th>場所</th><th>名前</th><th>ケース</th><th>判定</th></tr>
+<tr><td>クラス</td><td><code>PollenMeasurement</code></td><td>PascalCase</td><td class="ok">OK</td></tr>
+<tr><td>フィールド</td><td><code>pollenCount</code></td><td>camelCase</td><td class="ok">OK</td></tr>
+<tr><td>メソッド</td><td><code>of</code></td><td>camelCase（慣習名）</td><td class="ok">OK</td></tr>
+<tr><td>定数</td><td><code>NO_DATA</code></td><td>UPPER_SNAKE</td><td class="ok">OK</td></tr>
+<tr><td>DB列</td><td><code>pollen_count</code></td><td>snake_case</td><td class="ok">OK</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="pitfalls">7. やりがちな失敗（Phase 1）</h2>
+
+<div class="danger">
+🔴 <strong>失敗1：引数名に <code>_</code> 接頭辞</strong><br>
+<code>of(ObservationPoint _observationPoint, ...)</code> のように <code>_</code> を付けるのはC#などの流儀で、<strong>Javaでは非推奨</strong>。Javaは普通に <code>observationPoint</code> でよい（フィールドと同名でも、代入時は <code>this.observationPoint = observationPoint;</code> で区別できる）。<br>
+<span class="ok">→ あなたは既に <code>_</code> を外して修正済み 👍</span>
+</div>
+
+<div class="danger">
+🔴 <strong>失敗2：列名を手書きでキャメルのまま</strong><br>
+<code>@Column(name = "createdAt")</code> → DBは <code>created_at</code> なので不一致。<strong>書かない</strong>のが安全。書くなら snake_case。
+</div>
+
+<div class="warning">
+🟡 <strong>注意：パッケージ名の <code>pollen_notify</code></strong><br>
+Javaのパッケージは本来「全小文字・アンダースコアなし」が理想（<code>pollennotify</code>）。ただし <span class="term" data-tooltip="Spring公式のプロジェクト雛形生成サービス">Spring Initializr</span> がプロジェクト名から自動生成したもので、<strong>今から直す必要はない</strong>（実害なし）。「本当はこうあるべき」だけ知っておけばOK。
+</div>
+
+<div class="warning">
+🟡 <strong>注意：略語は避ける</strong><br>
+<code>cnt</code> <code>obsPt</code> のような独自略語は読み手に伝わらない。<code>count</code> <code>observationPoint</code> と書く。ただし <code>id</code> <code>url</code> <code>api</code> など広く通じる略語はOK。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="check">8. 理解度チェック</h2>
+
+<details>
+<summary>Q1. DBの列が <code>measured_at</code> のとき、Javaのフィールド名は何にすべき？ <code>@Column(name=...)</code> は必要？</summary>
+<p><code>measuredAt</code>（camelCase）。Hibernateが <code>measuredAt → measured_at</code> に自動変換するので <strong><code>@Column(name=...)</code> は不要</strong>。書かないのが安全。</p>
+</details>
+
+<details>
+<summary>Q2. <code>-9999</code> を定数にするとき、正しい命名はどれ？ <code>noData</code> / <code>NoData</code> / <code>NO_DATA</code></summary>
+<p><code>NO_DATA</code>。定数（<code>static final</code>）は UPPER_SNAKE_CASE。<code>noData</code> は変数、<code>NoData</code> はクラスの見た目になってしまう。</p>
+</details>
+
+<details>
+<summary>Q3. テーブル名は単数形 <code>observation_point</code> と複数形 <code>observation_points</code> どちら？</summary>
+<p>このプロジェクトは<strong>複数形</strong>（<code>observation_points</code>）で統一。「1行=1地点、テーブルは地点の集まり」という考え方。※単数派の流儀もあるが、プロジェクト内で統一が最重要。</p>
+</details>
+
+<details>
+<summary>Q4. 静的ファクトリ <code>of</code> と <code>from</code> の使い分けは？</summary>
+<p><code>of</code> は引数の値からそのまま組み立てる汎用。<code>from</code> は<strong>別の型から変換</strong>して作る場合（例：APIのDTOから <code>PollenMeasurement.from(dto)</code>）。Phase 1後半でDTO変換を書くとき <code>from</code> の出番が来るかも。</p>
+</details>
+
+<details>
+<summary>Q5. なぜDBは <code>created_at</code>、Javaは <code>createdAt</code> と「世界で違う」のに困らない？</summary>
+<p>Hibernate（JPA実装）の命名戦略が両者を自動で橋渡しするから。プログラマはそれぞれの世界の慣習に従って書くだけでよい。手書きで <code>@Column(name)</code> を混ぜると、この自動変換と食い違ってバグる。</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="next">9. 次にやること</h2>
+
+<div class="user-task">
+🖊️ <strong>あなたの作業</strong>
+<ol>
+  <li>PollenMeasurement のガード節を <code>if (count &lt; 0)</code> ＋メッセージ付き例外に直す（条件の向きとセミコロンに注意）</li>
+  <li><code>./gradlew compileJava</code> で BUILD SUCCESSFUL を確認</li>
+  <li>余裕があれば <code>Objects.requireNonNull(at, "measuredAt")</code> で null チェックも追加</li>
+</ol>
+</div>
+
+<div class="tip">
+🟣 <strong>このあとの流れ</strong>：Entity 2本（ObservationPoint / PollenMeasurement）が固まったら、次は <strong>Repository</strong>（Spring Data JPA）→ <strong>API解析層</strong>（DTO→Entity変換、ここで <code>-9999</code>=欠測の判断と <code>from</code> 命名が登場）へ進みます。命名規則はそのまま全レイヤーで効いてきます。
+</div>
+
+<hr style="margin: 3rem 0; border: none; border-top: 1px dashed #cbd5e1;">
+<p style="text-align:center; color:#6b7280; font-size:0.9em;">命名規則リファレンス ／ 花粉通知アプリ ／ 作成 2026-05-31</p>
+
+</body>
+</html>
