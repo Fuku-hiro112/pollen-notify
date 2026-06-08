@@ -1,48 +1,50 @@
 package com.fuku.pollen_notify.entity;
 
-import jakarta.persistence.Id;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+
+import static jakarta.persistence.GenerationType.SEQUENCE;
 
 @Entity
-@Table(name="Pollen")
+@Table(name = "observation_points")
+@EqualsAndHashCode(of = "id")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Getter
 public class ObservationPoint {
     @Id
-    private Integer id;
-    private String country;
-    private String prefecture;
-    private String city;
-
-
-    public Integer GetId() {
-        return id;
-    }
-
-    public void SetId(Integer id) {
-        this.id = id;
-    }
-
-    public String GetCountry() {
-        return country;
-    }
-
-    public void SetCountry(String country) {
-        this.country = country;
-    }
-
-    public String GetPrefecture() {
-        return prefecture;
-    }
-
-    public void SetPrefecture(String prefecture) {
-        this.prefecture = prefecture;
-    }
-
-    public String GetCity() {
-        return city;
-    }
-
-    public void SetCity(String city) {
-        this.city = city;
-    }
+    @GeneratedValue(
+            strategy = SEQUENCE,
+            generator = "observation_points_id_seq"
+        )
+    @SequenceGenerator(
+            name = "observation_points_id_seq",
+            sequenceName = "observation_points_id_seq",
+            allocationSize = 1
+        )
+    @Column
+    private Long id;
+    
+    @Column(name = "external_id",nullable = false,unique = true,length = 64)
+    private String externalId;
+    
+    @Column(nullable = false,length = 128)
+    private String name;
+    
+    @Column(precision = 9, scale = 6)
+    private BigDecimal latitude;
+    
+    @Column(precision = 9, scale = 6)
+    private BigDecimal longitude;
+    
+    @Column(name = "created_at",nullable=false)
+    private Instant createdAt;
+    
+    @Column(name = "updated_at",nullable=false)
+    private Instant updatedAt;
 }

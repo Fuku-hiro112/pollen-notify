@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Entity 修正プラン | 花粉通知アプリ</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+         max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.75; color: #1f2937; background: #fafafa; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.6rem; font-size: 1.8rem; }
+  h2 { border-left: 6px solid #2563eb; padding-left: 0.7rem; margin-top: 2.6rem; font-size: 1.4rem; }
+  h3 { color: #1e40af; margin-top: 1.6rem; }
+  .term { border-bottom: 1.5px dotted #2563eb; cursor: help; font-weight: 600; }
+  .concept { background: #ecfdf5; border-left: 4px solid #10b981; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .implementation { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .danger { background: #fee2e2; border-left: 4px solid #ef4444; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .tip { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .user-task { background: linear-gradient(to right, #fff7ed, #fffbeb); border: 2px dashed #f97316; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 6px; position: relative; }
+  .user-task::before { content: "🖊 あなたが書く"; position: absolute; top: -0.7rem; left: 0.8rem; background: #f97316; color: white; padding: 0.1rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: bold; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; background: white; font-size: 0.92em; }
+  th, td { border: 1px solid #d1d5db; padding: 0.55rem 0.8rem; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  code { background: #f3f4f6; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: Consolas, monospace; }
+  pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.86em; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .toc { background: white; border: 1px solid #e5e7eb; padding: 1rem 1.5rem; border-radius: 6px; margin: 1.5rem 0; }
+  .toc ol { margin: 0.3rem 0; padding-left: 1.4rem; }
+  .toc a { color: #2563eb; text-decoration: none; }
+  ul.checklist { list-style: none; padding-left: 0; }
+  ul.checklist li { padding: 0.3rem 0; display: flex; align-items: flex-start; gap: 0.6rem; }
+  ul.checklist li > input[type="checkbox"] { margin-top: 0.4rem; width: 1.15rem; height: 1.15rem; flex-shrink: 0; cursor: pointer; accent-color: #2563eb; }
+  ul.checklist li > .check-body { flex: 1; }
+  ul.checklist li.done > .check-body { color: #9ca3af; text-decoration: line-through; text-decoration-thickness: 1.5px; }
+  ul.checklist li.done > .check-body .diff-add,
+  ul.checklist li.done > .check-body .diff-del,
+  ul.checklist li.done > .check-body code { opacity: 0.55; }
+  .progress-bar { background: #e5e7eb; border-radius: 9999px; height: 0.6rem; overflow: hidden; margin: 0.4rem 0 0.8rem 0; }
+  .progress-fill { background: linear-gradient(to right, #10b981, #059669); height: 100%; transition: width 0.3s ease; }
+  .progress-label { font-size: 0.85em; color: #475569; margin-bottom: 0.3rem; }
+  .checklist-controls { margin: 0.5rem 0 1rem 0; }
+  .checklist-controls button { background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; padding: 0.3rem 0.7rem; font-size: 0.85rem; cursor: pointer; margin-right: 0.4rem; color: #374151; }
+  .checklist-controls button:hover { background: #e5e7eb; }
+  details { background: white; padding: 0.7rem 1rem; border: 1px solid #e5e7eb; border-radius: 4px; margin: 0.5rem 0; }
+  summary { cursor: pointer; font-weight: bold; color: #1e40af; }
+  .diff-add { background: #d1fae5; padding: 0.05rem 0.3rem; border-radius: 3px; color: #065f46; }
+  .diff-del { background: #fee2e2; padding: 0.05rem 0.3rem; border-radius: 3px; color: #991b1b; text-decoration: line-through; }
+  .diagram { margin: 1.5rem 0; text-align: center; background: white; padding: 1.2rem; border-radius: 6px; border: 1px solid #e5e7eb; }
+  a.docref { color: #2563eb; font-size: 0.88em; }
+  .verdict { background: #1e40af; color: white; padding: 0.6rem 1rem; border-radius: 4px; margin: 0.8rem 0; }
+  hr { border: none; border-top: 1px dashed #cbd5e1; margin: 1.5rem 0; }
+</style>
+</head>
+<body>
+
+<h1>Entity 修正プラン</h1>
+<p>ObservationPoint / PollenMeasurement ／ 2026-05-30 作成</p>
+
+<div class="concept">
+  <strong>このプランの位置づけ：</strong> Step 1（Entity 実装）の途中レビューで、<code>ObservationPoint</code> が DDL から逸脱していたことが判明。「DDL に合わせ直す」方針で確定済み。本ドキュメントは<strong>あなたが直すべき点のチェックリスト</strong>（ヒント形式）。Claude は実装しません。
+</div>
+
+<div class="toc">
+  <strong>📚 目次</strong>
+  <ol>
+    <li><a href="#context">経緯（Context）</a></li>
+    <li><a href="#truth">真実の基準（DDL）</a></li>
+    <li><a href="#observation-fix">ObservationPoint.java 修正チェックリスト</a></li>
+    <li><a href="#measurement-impl">PollenMeasurement.java 実装チェックリスト</a></li>
+    <li><a href="#verify">検証手順</a></li>
+    <li><a href="#refs">参照ドキュメント</a></li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="context">1. 経緯（Context）</h2>
+
+<p>Step 1（Entity 実装）に着手中。書きかけの <code>ObservationPoint</code> をレビューしたところ、
+DDL（<code>V1__init.sql</code>）と<strong>完全に別物のカラム構成</strong>だった。</p>
+
+<table>
+<tr><th>項目</th><th>書きかけの Entity</th><th>DDL（真実）</th></tr>
+<tr><td>テーブル名</td><td><code>Pollen</code></td><td><code>observation_points</code></td></tr>
+<tr><td>カラム</td><td>id, country, prefecture, city</td><td>id, external_id, name, latitude, longitude, created_at, updated_at</td></tr>
+<tr><td>ID 型</td><td>Integer</td><td>BIGSERIAL → Long</td></tr>
+<tr><td>採番戦略</td><td>未指定</td><td>SEQUENCE 採用予定</td></tr>
+<tr><td>メソッド命名</td><td>GetId / SetId</td><td>JavaBeans: getId / setId</td></tr>
+<tr><td>setter</td><td>あり</td><td>なし（不変性方針）</td></tr>
+</table>
+
+<div class="verdict">
+方針：<strong>DDL に合わせ直す</strong>（country/prefecture/city は撤去し、external_id=citycode を主軸にした構造に戻す）
+</div>
+
+<p><code>PollenMeasurement</code> は空クラスのまま。これから書く。</p>
+
+<!-- ============================================================ -->
+<h2 id="truth">2. 真実の基準（DDL）</h2>
+
+<p><code>src/main/resources/db/migration/V1__init.sql</code> が DB スキーマの<strong>真実</strong>。Entity はこれに 1:1 で対応させる。<code>ddl-auto: validate</code> モードのため、不一致は起動失敗で検知される。</p>
+
+<pre><code>observation_points
+├─ id                BIGSERIAL    PRIMARY KEY
+├─ external_id       VARCHAR(64)  NOT NULL UNIQUE   ← API の citycode を入れる
+├─ name              VARCHAR(128) NOT NULL
+├─ latitude          NUMERIC(9,6)
+├─ longitude         NUMERIC(9,6)
+├─ created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+└─ updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+
+pollen_measurements
+├─ id                    BIGSERIAL   PRIMARY KEY
+├─ observation_point_id  BIGINT      NOT NULL  FK → observation_points(id)
+├─ measured_at           TIMESTAMPTZ NOT NULL
+├─ pollen_count          INTEGER     NOT NULL
+├─ created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+└─ UNIQUE(observation_point_id, measured_at)</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="observation-fix">3. ObservationPoint.java 修正チェックリスト</h2>
+
+<p>対象：<code>src/main/java/com/fuku/pollen_notify/entity/ObservationPoint.java</code></p>
+
+<div class="user-task">
+<ul class="checklist">
+  <li><strong>import 追加</strong>：<code>@Entity</code>, <code>@Table</code>, <code>@GeneratedValue</code>, <code>@SequenceGenerator</code>, <code>@Column</code> 等を <code>jakarta.persistence.*</code> から</li>
+  <li><strong>@Table</strong>：<span class="diff-del">@Table(name="Pollen")</span> → <span class="diff-add">@Table(name = "observation_points")</span></li>
+  <li><strong>フィールドを DDL に合わせる</strong>：<span class="diff-del">country / prefecture / city</span> を撤去し、以下を追加：
+    <ul>
+      <li><span class="diff-add">externalId</span>（String, API の citycode を入れる, NOT NULL, UNIQUE）</li>
+      <li><span class="diff-add">name</span>（String, 地点名）</li>
+      <li><span class="diff-add">latitude</span>（BigDecimal, <code>@Column(precision=9, scale=6)</code>）</li>
+      <li><span class="diff-add">longitude</span>（BigDecimal, 同上）</li>
+      <li><span class="diff-add">createdAt</span>（Instant）</li>
+      <li><span class="diff-add">updatedAt</span>（Instant）</li>
+    </ul>
+  </li>
+  <li><strong>id の型</strong>：<span class="diff-del">Integer</span> → <span class="diff-add">Long</span>（BIGSERIAL 対応）</li>
+  <li><strong>採番戦略</strong>：<code>@GeneratedValue(strategy = SEQUENCE)</code> + <code>@SequenceGenerator</code> を追加
+    <ul>
+      <li>sequenceName = <code>"observation_points_id_seq"</code></li>
+      <li>allocationSize = <strong>1</strong>（罠回避）</li>
+    </ul>
+  </li>
+  <li><strong>メソッド命名</strong>：<span class="diff-del">GetId / SetId</span> → <span class="diff-add">getId / setId</span>（JavaBeans 規約。大文字始まりだと JPA / Lombok が認識しない）</li>
+  <li><strong>setter 撤去</strong>：方針通り不変性を保つため、すべての <code>setXxx</code> を削除。状態変更が要るなら意味のあるメソッドへ（例：<code>updateLocation(lat, lon)</code>）</li>
+  <li><strong>created_at / updated_at は Java 側でセットしない</strong>：DDL の <code>DEFAULT NOW()</code> に委譲。getterだけ用意</li>
+</ul>
+</div>
+
+<details>
+<summary>💡 setterを撤去した後、テストで状態を作りたい時はどうする？</summary>
+<p><strong>ファクトリメソッド</strong>を public static で用意する。例：</p>
+<pre><code>public static ObservationPoint create(String externalId, String name,
+                                       BigDecimal lat, BigDecimal lon) {
+    ObservationPoint p = new ObservationPoint();
+    // 内部でフィールドを埋める（同パッケージから見える設計）
+    return p;
+}</code></pre>
+<p>これで「正しい状態のものしか作れない」を保証できる。</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="measurement-impl">4. PollenMeasurement.java 実装チェックリスト</h2>
+
+<p>対象：<code>src/main/java/com/fuku/pollen_notify/entity/PollenMeasurement.java</code>（現状空クラス）</p>
+
+<div class="diagram">
+<svg width="780" height="200" viewBox="0 0 780 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <rect x="60" y="50" width="240" height="100" rx="8" fill="#fff7ed" stroke="#f97316" stroke-width="2"/>
+  <text x="180" y="80" text-anchor="middle" font-weight="bold" font-size="14">PollenMeasurement</text>
+  <text x="180" y="100" text-anchor="middle" font-size="11">id, observationPoint, measuredAt,</text>
+  <text x="180" y="115" text-anchor="middle" font-size="11">pollenCount, createdAt</text>
+  <text x="180" y="138" text-anchor="middle" font-size="11" fill="#7c2d12">@ManyToOne ↓</text>
+
+  <line x1="300" y1="100" x2="478" y2="100" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="389" y="92" text-anchor="middle" font-size="11" fill="#475569">FK (observation_point_id)</text>
+
+  <rect x="480" y="50" width="240" height="100" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+  <text x="600" y="80" text-anchor="middle" font-weight="bold" font-size="14">ObservationPoint</text>
+  <text x="600" y="100" text-anchor="middle" font-size="11">id, externalId, name,</text>
+  <text x="600" y="115" text-anchor="middle" font-size="11">latitude, longitude, ...</text>
+
+  <text x="389" y="180" text-anchor="middle" font-size="11" fill="#b91c1c">⚠ 逆方向（@OneToMany）は持たせない</text>
+</svg>
+</div>
+
+<div class="user-task">
+<ul class="checklist">
+  <li><strong>クラスアノテーション</strong>：<code>@Entity</code> + <code>@Table(name = "pollen_measurements")</code></li>
+  <li><strong>Lombok</strong>（採用方針）：<code>@Getter</code>, <code>@NoArgsConstructor(access = PROTECTED)</code>, <code>@EqualsAndHashCode(of = "id")</code></li>
+  <li><strong>id</strong>：<code>Long</code> 型に <code>@Id</code> + <code>@GeneratedValue(SEQUENCE)</code> + <code>@SequenceGenerator</code>
+    <ul>
+      <li>sequenceName = <code>"pollen_measurements_id_seq"</code></li>
+      <li>allocationSize = <strong>1</strong></li>
+    </ul>
+  </li>
+  <li><strong>observationPoint（参照）</strong>：
+    <ul>
+      <li><code>@ManyToOne(fetch = FetchType.LAZY, optional = false)</code></li>
+      <li><code>@JoinColumn(name = "observation_point_id", nullable = false)</code></li>
+      <li>型は <code>ObservationPoint</code></li>
+      <li>⚠ 逆方向の <code>@OneToMany</code> は<strong>持たせない</strong>（地点に観測値リストを持たせない）</li>
+    </ul>
+  </li>
+  <li><strong>measuredAt</strong>：<code>Instant</code>, NOT NULL（観測時刻＝絶対時刻）</li>
+  <li><strong>pollenCount</strong>：<code>int</code> または <code>Integer</code>。NOT NULL 想定なら <code>int</code> でも可
+    <ul>
+      <li>※ <code>-9999</code>（欠測）はそもそも保存しない方針 → Entity に来る時点で正の整数</li>
+    </ul>
+  </li>
+  <li><strong>createdAt</strong>：<code>Instant</code>、DDL の DEFAULT NOW() に委譲</li>
+  <li><strong>ファクトリメソッド検討</strong>：
+    <ul>
+      <li><code>public static PollenMeasurement of(ObservationPoint p, Instant at, int count) {...}</code></li>
+      <li>この中で「count が負数や -9999 ならエラー」のドメインルールを書ける</li>
+    </ul>
+  </li>
+</ul>
+</div>
+
+<div class="tip">
+<strong>ファクトリメソッドにドメインルールを集中させる効果：</strong>
+<ul>
+  <li>「不正な状態の PollenMeasurement は作れない」を仕組みで保証できる</li>
+  <li>Service層が「-9999 を除外する処理」を持つ必要がなくなる（責務分散の解消）</li>
+  <li>Phase 4 のドメイン層強化への布石</li>
+</ul>
+</div>
+
+<p class="docref">📖 型枠の参考：<a href="../references/2026-05-27_jpa-annotations-reference.html">JPAアノテーション リファレンス §11</a></p>
+
+<!-- ============================================================ -->
+<h2 id="verify">5. 検証手順（end-to-end）</h2>
+
+<div class="implementation">
+<ol>
+  <li><code>docker compose ps</code> で DB が <code>Up (healthy)</code> を確認（落ちていたら <code>docker compose up -d</code>）</li>
+  <li><code>./gradlew bootRun</code></li>
+  <li>起動成功 = <code>ddl-auto: validate</code> がスキーマ一致を保証してくれた状態</li>
+  <li>失敗時：<code>Schema-validation: missing column ...</code> 等のエラー全文を確認し、DDL と Entity を照合</li>
+  <li>起動できたら Step 2（Repository）へ進む</li>
+</ol>
+</div>
+
+<div class="warning">
+<strong>validate モードで検出される / されない</strong>
+<table>
+<tr><th>検出される</th><th>検出されない</th></tr>
+<tr><td>カラムの存在</td><td>NOT NULL / DEFAULT 等の制約</td></tr>
+<tr><td>型カテゴリ（数値・文字列・日時）</td><td>VARCHAR の長さ</td></tr>
+<tr><td>テーブル名・カラム名</td><td>UNIQUE 制約</td></tr>
+</table>
+「validate が通った＝完全一致」ではない。真の制約は Flyway 側にある。
+</div>
+
+<details>
+<summary>よくあるエラー例</summary>
+<table>
+<tr><th>エラーメッセージ</th><th>原因の仮説</th></tr>
+<tr><td><code>Schema-validation: missing column [external_id]</code></td><td>Entity に external_id がない／カラム名のマッピングが違う</td></tr>
+<tr><td><code>Schema-validation: missing table [Pollen]</code></td><td><code>@Table(name=...)</code> の名前がDDL と違う</td></tr>
+<tr><td><code>could not extract ResultSet [42703] ERROR: column ... does not exist</code></td><td>同上 or <code>@Column(name=...)</code> ミス</td></tr>
+<tr><td>起動はするが INSERT 時に重複ID</td><td>SEQUENCE の allocationSize 不一致</td></tr>
+</table>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="refs">6. 参照ドキュメント</h2>
+
+<table>
+<tr><th>資料</th><th>使うタイミング</th></tr>
+<tr><td><a href="../references/2026-05-27_jpa-annotations-reference.html">JPA アノテーション リファレンス</a></td><td>個々のアノテーションの使い方・罠を確認</td></tr>
+<tr><td><a href="../design-decisions/2026-05-26_design-criteria-entity.html">Entity 設計判断ガイド</a></td><td>Lombok / ID 戦略 / 日時型の選択理由を再確認</td></tr>
+<tr><td><a href="../guides/2026-05-25_phase1-user-implementation.html">Phase 1 ユーザー実装ガイド</a></td><td>全体像・Step 1〜6 の流れ</td></tr>
+<tr><td><a href="../index.html">📑 docs トップ</a></td><td>全ドキュメント一覧</td></tr>
+</table>
+
+<hr>
+<p style="text-align: center; color: #6b7280; font-size: 0.9em;">Entity 修正プラン ／ 2026-05-30</p>
+
+<script>
+(function () {
+  const PAGE_KEY = 'pollen-notify:entity-fix-plan';
+
+  function nearestSectionId(el) {
+    let n = el;
+    while (n) {
+      let p = n.previousElementSibling;
+      while (p) {
+        if (/^H[1-6]$/.test(p.tagName) && p.id) return p.id;
+        p = p.previousElementSibling;
+      }
+      if (n.id) return n.id;
+      n = n.parentElement;
+    }
+    return 'root';
+  }
+
+  function setup(ul, idx) {
+    const sectionKey = nearestSectionId(ul);
+    const items = Array.from(ul.children).filter(c => c.tagName === 'LI');
+
+    items.forEach((li, i) => {
+      if (li.querySelector(':scope > input[type="checkbox"]')) return;
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.id = `${PAGE_KEY}:${sectionKey}:${idx}:${i}`;
+      const body = document.createElement('span');
+      body.className = 'check-body';
+      while (li.firstChild) body.appendChild(li.firstChild);
+      li.appendChild(cb);
+      li.appendChild(body);
+      if (localStorage.getItem(cb.id) === '1') {
+        cb.checked = true;
+        li.classList.add('done');
+      }
+      cb.addEventListener('change', () => {
+        li.classList.toggle('done', cb.checked);
+        localStorage.setItem(cb.id, cb.checked ? '1' : '0');
+        update();
+      });
+    });
+
+    const wrap = document.createElement('div');
+    wrap.innerHTML =
+      '<div class="progress-label"><span class="progress-text"></span></div>' +
+      '<div class="progress-bar"><div class="progress-fill"></div></div>' +
+      '<div class="checklist-controls"><button type="button" class="reset-btn">リセット</button></div>';
+    ul.parentNode.insertBefore(wrap, ul);
+
+    function update() {
+      const total = items.length;
+      const done = items.filter(li => li.classList.contains('done')).length;
+      wrap.querySelector('.progress-text').textContent =
+        `${done} / ${total} 完了` + (done === total && total > 0 ? ' 🎉' : '');
+      wrap.querySelector('.progress-fill').style.width =
+        (total ? (done / total * 100) : 0) + '%';
+    }
+
+    wrap.querySelector('.reset-btn').addEventListener('click', () => {
+      if (!confirm('このチェックリストの状態をリセットしますか？')) return;
+      items.forEach(li => {
+        const cb = li.querySelector(':scope > input[type="checkbox"]');
+        if (cb) { cb.checked = false; li.classList.remove('done'); localStorage.removeItem(cb.id); }
+      });
+      update();
+    });
+
+    update();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('ul.checklist').forEach((ul, i) => setup(ul, i));
+  });
+})();
+</script>
+
+</body>
+</html>

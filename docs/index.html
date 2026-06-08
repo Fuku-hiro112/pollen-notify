@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ドキュメント目次 | 花粉通知アプリ</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+         max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.75; color: #1f2937; background: #fafafa; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.6rem; font-size: 1.9rem; }
+  h2 { border-left: 6px solid #2563eb; padding-left: 0.7rem; margin-top: 2.4rem; font-size: 1.3rem; }
+  .intro { background: #ecfdf5; border-left: 4px solid #10b981; padding: 0.9rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  .category { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.2rem 1.5rem; margin: 1rem 0; }
+  .category h2 { margin-top: 0; }
+  .doc-list { list-style: none; padding-left: 0; }
+  .doc-list li { padding: 0.7rem 0; border-bottom: 1px dashed #e5e7eb; }
+  .doc-list li:last-child { border-bottom: none; }
+  .doc-list a { color: #2563eb; text-decoration: none; font-weight: bold; font-size: 1.05rem; }
+  .doc-list a:hover { text-decoration: underline; }
+  .doc-meta { color: #6b7280; font-size: 0.85em; margin-left: 0.5rem; }
+  .doc-desc { color: #4b5563; font-size: 0.92em; margin: 0.3rem 0 0 0; }
+  .badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: bold; margin-left: 0.4rem; vertical-align: middle; color: white; }
+  .badge-guide { background: #10b981; }
+  .badge-ref { background: #3b82f6; }
+  .badge-design { background: #8b5cf6; }
+  .badge-plan { background: #f97316; }
+  .flow { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 0.8rem 1.2rem; margin: 1rem 0; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #d1d5db; padding: 0.5rem 0.8rem; text-align: left; background: white; }
+  th { background: #f3f4f6; }
+  .phase-badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.8rem; font-weight: bold; background: #dbeafe; color: #1e40af; }
+</style>
+</head>
+<body>
+
+<h1>📑 花粉通知アプリ ドキュメント目次</h1>
+
+<div class="intro">
+本プロジェクトのドキュメントは、目的別に4カテゴリで管理しています。
+日付プレフィックス（<code>YYYY-MM-DD_</code>）は作成日。ドキュメントは時系列で並びます。
+各カテゴリのフォルダ内で更新は許容、ただし日付プレフィックスは作成日のまま維持。
+</div>
+
+<!-- ============================================================ -->
+<div class="category">
+<h2>📘 Guides <span class="badge badge-guide">実装手順</span></h2>
+<p style="color: #4b5563;">プロジェクト全体の進め方・Phase 単位の手順を示すドキュメント。「これから何をするか」を最初に読む。</p>
+
+<ul class="doc-list">
+  <li>
+    <a href="guides/2026-05-31_spring-data-jpa-repository.html">Repository 実装ガイド（Spring Data JPA）</a>
+    <span class="doc-meta">2026-05-31</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">Entity の次のステップ。JpaRepository の継承、タダで手に入るメソッド、派生クエリ命名規約、external_id検索・重複防止メソッドの書き方（あなたが書く課題付き）。</p>
+  </li>
+  <li>
+    <a href="guides/2026-05-31_intellij-and-gradle-usage.html">IntelliJ IDEA & Gradle 使い方ガイド</a>
+    <span class="doc-meta">2026-05-31</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">gradlew コマンドをどこで打つか（内蔵ターミナル/Gradleパネル/OSターミナル）、IntelliJ Community 2025.2 の画面構成・操作・ビルドエラーの読み方・ショートカット。</p>
+  </li>
+  <li>
+    <a href="guides/2026-05-25_phase1-user-implementation.html">Phase 1 ユーザー実装ガイド</a>
+    <span class="doc-meta">2026-05-25</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">Entity → Repository → DTO → Client → Service → Controller の実装順序、レイヤー依存図、Step 1〜6 の詳細。</p>
+  </li>
+</ul>
+</div>
+
+<!-- ============================================================ -->
+<div class="category">
+<h2>📗 References <span class="badge badge-ref">リファレンス</span></h2>
+<p style="color: #4b5563;">特定の技術・ライブラリの使い方・罠をまとめた参照資料。書いている途中で何度も戻ってくる。</p>
+
+<ul class="doc-list">
+  <li>
+    <a href="references/2026-05-31_naming-conventions.html">命名規則リファレンス（Java / JPA / DB）</a>
+    <span class="doc-meta">2026-05-31</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">PascalCase / camelCase / snake_case / UPPER_SNAKE の使い分け、Java↔DBの命名自動変換、テーブル・列・FK・シーケンスの命名、ファクトリ命名（of/from/valueOf）、やりがちな失敗。</p>
+  </li>
+  <li>
+    <a href="references/2026-05-27_jpa-annotations-reference.html">JPA アノテーション リファレンス</a>
+    <span class="doc-meta">2026-05-27</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">@Entity, @Id, @GeneratedValue, @SequenceGenerator, @Column, @ManyToOne, @JoinColumn 等の用途・使用例・メリット/デメリット・本プロジェクト推奨。最小構成テンプレ付き。</p>
+  </li>
+</ul>
+</div>
+
+<!-- ============================================================ -->
+<div class="category">
+<h2>📙 Design Decisions <span class="badge badge-design">設計判断</span></h2>
+<p style="color: #4b5563;">設計判断の経緯・選択肢・採用理由を記録するドキュメント（Architecture Decision Record 的）。後から「なぜこう決めたか」を思い出すための資料。</p>
+
+<ul class="doc-list">
+  <li>
+    <a href="design-decisions/2026-05-26_design-criteria-entity.html">Entity 設計判断ガイド（Lombok / ID 戦略 / 日時型）</a>
+    <span class="doc-meta">2026-05-26</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">OOP・保守性視点から、Lombok・ID 生成戦略・日時型の選択肢を7つの判断軸で評価。SEQUENCE / Instant / @Getter+@NoArgsConstructor(PROTECTED) を推奨。</p>
+  </li>
+</ul>
+</div>
+
+<!-- ============================================================ -->
+<div class="category">
+<h2>📕 Plans <span class="badge badge-plan">プラン</span></h2>
+<p style="color: #4b5563;">特定の作業（修正・実装・リファクタ）の手順チェックリスト。完了すれば役目を終える。</p>
+
+<ul class="doc-list">
+  <li>
+    <a href="plans/2026-05-30_entity-fix-plan.html">Entity 修正プラン（ObservationPoint / PollenMeasurement）</a>
+    <span class="doc-meta">2026-05-30</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">DDL 逸脱した ObservationPoint の修正と、PollenMeasurement 新規実装のチェックリスト。検証手順・よくあるエラー例も収録。</p>
+  </li>
+</ul>
+</div>
+
+<!-- ============================================================ -->
+<h2>📂 フォルダ構成</h2>
+<pre style="background: white; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 4px;">
+docs/
+├── index.html                            ← この目次
+├── guides/                               ← 実装手順・全体像
+├── references/                           ← リファレンス資料
+├── design-decisions/                     ← 設計判断記録
+└── plans/                                ← 修正・実装プラン
+</pre>
+
+<!-- ============================================================ -->
+<h2>🗓 時系列（最近の更新順）</h2>
+<table>
+<tr><th>日付</th><th>カテゴリ</th><th>ドキュメント</th></tr>
+<tr><td>2026-05-31</td><td><span class="badge badge-guide">Guide</span></td><td><a href="guides/2026-05-31_spring-data-jpa-repository.html">Repository 実装ガイド（Spring Data JPA）</a></td></tr>
+<tr><td>2026-05-31</td><td><span class="badge badge-ref">Ref</span></td><td><a href="references/2026-05-31_naming-conventions.html">命名規則リファレンス（Java / JPA / DB）</a></td></tr>
+<tr><td>2026-05-31</td><td><span class="badge badge-guide">Guide</span></td><td><a href="guides/2026-05-31_intellij-and-gradle-usage.html">IntelliJ IDEA & Gradle 使い方ガイド</a></td></tr>
+<tr><td>2026-05-30</td><td><span class="badge badge-plan">Plan</span></td><td><a href="plans/2026-05-30_entity-fix-plan.html">Entity 修正プラン</a></td></tr>
+<tr><td>2026-05-27</td><td><span class="badge badge-ref">Ref</span></td><td><a href="references/2026-05-27_jpa-annotations-reference.html">JPA アノテーション リファレンス</a></td></tr>
+<tr><td>2026-05-26</td><td><span class="badge badge-design">Design</span></td><td><a href="design-decisions/2026-05-26_design-criteria-entity.html">Entity 設計判断ガイド</a></td></tr>
+<tr><td>2026-05-25</td><td><span class="badge badge-guide">Guide</span></td><td><a href="guides/2026-05-25_phase1-user-implementation.html">Phase 1 ユーザー実装ガイド</a></td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2>🧭 状況別「まずこれを読む」</h2>
+
+<div class="flow">
+<table>
+<tr><th>状況</th><th>読むべきドキュメント</th></tr>
+<tr><td>IntelliJ の使い方・gradlew をどこで打つか分からない</td><td>📘 IntelliJ IDEA & Gradle 使い方ガイド</td></tr>
+<tr><td>これから Phase 1 を始める</td><td>📘 Phase 1 ユーザー実装ガイド</td></tr>
+<tr><td>Entity の次、Repository を書く</td><td>📘 Repository 実装ガイド（Spring Data JPA）</td></tr>
+<tr><td>Entity を書き始める前に設計判断を見直したい</td><td>📙 Entity 設計判断ガイド</td></tr>
+<tr><td>変数・テーブル・列の名前の付け方に迷う</td><td>📗 命名規則リファレンス</td></tr>
+<tr><td>アノテーションの使い方を確認したい</td><td>📗 JPA アノテーション リファレンス</td></tr>
+<tr><td>現在の作業（Entity 修正）のチェックリストが欲しい</td><td>📕 Entity 修正プラン</td></tr>
+<tr><td>過去の議論を振り返りたい</td><td>📙 Design Decisions フォルダから日付で探す</td></tr>
+</table>
+</div>
+
+<hr style="margin: 3rem 0; border: none; border-top: 1px dashed #cbd5e1;">
+<p style="text-align: center; color: #6b7280; font-size: 0.9em;">花粉通知アプリ ドキュメント目次 ／ 最終更新 2026-05-30</p>
+
+</body>
+</html>

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Repository 実装ガイド（Spring Data JPA）| 花粉通知アプリ</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+         max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.75; color: #1f2937; background: #fafafa; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.5rem; font-size: 1.85rem; }
+  h2 { border-left: 5px solid #2563eb; padding-left: 0.6rem; margin-top: 2.6rem; font-size: 1.35rem; }
+  h3 { margin-top: 1.6rem; font-size: 1.1rem; color: #374151; }
+  .term { border-bottom: 1px dotted #2563eb; cursor: help; }
+  .concept { background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .implementation { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .danger { background: #fee2e2; border-left: 4px solid #ef4444; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .tip { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .user-task { background: #fff7ed; border: 1px dashed #f97316; padding: 0.8rem 1rem; margin: 1rem 0; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.94rem; }
+  th, td { border: 1px solid #d1d5db; padding: 0.5rem 0.8rem; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  code { background: #eef2f7; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: "Consolas","Menlo",monospace; }
+  pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .toc { background: #f9fafb; border: 1px solid #e5e7eb; padding: 1rem 1.5rem; border-radius: 6px; }
+  .toc ol { margin: 0.3rem 0; }
+  .toc a { color: #2563eb; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  details { background: #f9fafb; padding: 0.8rem 1rem; border-radius: 4px; margin: 0.5rem 0; border: 1px solid #e5e7eb; }
+  summary { cursor: pointer; font-weight: bold; }
+  .diagram { margin: 1.5rem 0; text-align: center; }
+  .ref-link { font-size: 0.88rem; color: #6b7280; margin-top: 0.6rem; }
+  .ref-link a { color: #2563eb; }
+  .ok { color: #047857; font-weight: bold; }
+  .ng { color: #b91c1c; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>🗄️ Repository 実装ガイド（Spring Data JPA）</h1>
+<p style="color:#6b7280;">花粉通知アプリ ／ 2026-05-31 ／ Phase 1 ／ Entity の次のステップ</p>
+
+<div class="concept">
+<strong>このステップのゴール</strong><br>
+Entity 2本（ObservationPoint / PollenMeasurement）が固まったので、次は<strong>DBへ保存・取得する入口</strong>を作ります。<span class="term" data-tooltip="Spring Data JPA。リポジトリのインターフェースを書くだけで実装を自動生成するライブラリ">Spring Data JPA</span> を使うと、<strong>インターフェースを1個書くだけ</strong>で <code>save</code> / <code>findById</code> などが手に入ります。実装クラスは書きません（Springが起動時に自動生成）。
+</div>
+
+<div class="toc">
+<strong>📑 目次</strong>
+<ol>
+  <li><a href="#what">Repository とは何か（2つの意味）</a></li>
+  <li><a href="#where">今どこにいる？（全体像）</a></li>
+  <li><a href="#minimal">最小実装：インターフェースを継承するだけ</a></li>
+  <li><a href="#free">タダで手に入るメソッド</a></li>
+  <li><a href="#derived">クエリメソッド命名規約（派生クエリ）</a></li>
+  <li><a href="#thisproject">このプロジェクトで必要なメソッド（あなたが書く）</a></li>
+  <li><a href="#annotation">@Repository は要る？</a></li>
+  <li><a href="#pitfalls">やりがちな失敗</a></li>
+  <li><a href="#check">理解度チェック</a></li>
+  <li><a href="#next">次にやること</a></li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="what">1. Repository とは何か（2つの意味）</h2>
+
+<table>
+<tr><th>視点</th><th>意味</th></tr>
+<tr><td><strong>DDD の概念</strong><br>（Phase 4の本命）</td><td>「<span class="term" data-tooltip="一貫性を保つ単位でまとめたオブジェクトの集まり。例：観測値とその所属地点">集約</span>を丸ごと出し入れする<strong>コレクションのような窓口</strong>」。ドメイン層が「DBの存在」を意識せずに済むよう隠す役。</td></tr>
+<tr><td><strong>Spring Data JPA の機能</strong><br>（今やること）</td><td>その窓口を、<strong>インターフェース定義だけで自動実装</strong>してくれる仕組み。SQLもJDBCも書かない。</td></tr>
+</table>
+
+<div class="tip">
+🟣 <strong>Phase 連続性</strong>：今は「Springの便利機能」として最小限に使い、Phase 4で「DDDのリポジトリとして集約の境界をどう守るか」を学び直します。今書くものがその土台になります。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="where">2. 今どこにいる？（全体像）</h2>
+
+<div class="diagram">
+<svg width="700" height="120" viewBox="0 0 700 120" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#9ca3af"/>
+    </marker>
+  </defs>
+  <!-- boxes -->
+  <rect x="10"  y="40" width="110" height="44" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="65" y="60" text-anchor="middle" font-size="13" font-weight="bold" fill="#166534">Entity</text>
+  <text x="65" y="76" text-anchor="middle" font-size="10" fill="#166534">✅ 完了</text>
+
+  <rect x="150" y="40" width="120" height="44" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="2.5"/>
+  <text x="210" y="60" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e40af">Repository</text>
+  <text x="210" y="76" text-anchor="middle" font-size="10" fill="#1e40af">◀ 今ここ</text>
+
+  <rect x="300" y="40" width="90" height="44" rx="6" fill="#f3f4f6" stroke="#9ca3af"/>
+  <text x="345" y="65" text-anchor="middle" font-size="12" fill="#6b7280">DTO / Client</text>
+
+  <rect x="420" y="40" width="90" height="44" rx="6" fill="#f3f4f6" stroke="#9ca3af"/>
+  <text x="465" y="65" text-anchor="middle" font-size="12" fill="#6b7280">Service</text>
+
+  <rect x="540" y="40" width="100" height="44" rx="6" fill="#f3f4f6" stroke="#9ca3af"/>
+  <text x="590" y="65" text-anchor="middle" font-size="12" fill="#6b7280">Controller</text>
+
+  <line x1="120" y1="62" x2="148" y2="62" stroke="#9ca3af" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="270" y1="62" x2="298" y2="62" stroke="#9ca3af" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="390" y1="62" x2="418" y2="62" stroke="#9ca3af" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="510" y1="62" x2="538" y2="62" stroke="#9ca3af" stroke-width="2" marker-end="url(#ar)"/>
+</svg>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="minimal">3. 最小実装：インターフェースを継承するだけ</h2>
+
+<p>クラスではなく <strong>インターフェース</strong> を作り、<code>JpaRepository&lt;T, ID&gt;</code> を継承します。型引数は2つ：</p>
+
+<table>
+<tr><th>型引数</th><th>意味</th><th>ObservationPoint の場合</th></tr>
+<tr><td><code>T</code></td><td>対象の Entity 型</td><td><code>ObservationPoint</code></td></tr>
+<tr><td><code>ID</code></td><td>その Entity の<strong>主キーの型</strong></td><td><code>Long</code>（<code>id</code> が <code>Long</code> なので）</td></tr>
+</table>
+
+<div class="implementation">
+🔵 <strong>形（ObservationPoint 用）</strong>
+<pre><code>package com.fuku.pollen_notify.repository;
+
+import com.fuku.pollen_notify.entity.ObservationPoint;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ObservationPointRepository
+        extends JpaRepository&lt;ObservationPoint, Long&gt; {
+    // 中身は空でも動く（次章のメソッドはあとで足す）
+}</code></pre>
+</div>
+
+<div class="user-task">
+🖊️ <strong>あなたが書くもの</strong>：<code>repository</code> パッケージを新規作成し、上を参考に <strong>2つのインターフェース</strong>を自分で書く。
+<ul>
+  <li><code>ObservationPointRepository</code> … <code>JpaRepository&lt;ObservationPoint, Long&gt;</code></li>
+  <li><code>PollenMeasurementRepository</code> … <code>JpaRepository&lt;PollenMeasurement, ___&gt;</code>（主キーの型は自分で確認して埋める）</li>
+</ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="free">4. タダで手に入るメソッド</h2>
+<p><code>JpaRepository</code> を継承した時点で、<strong>1行も書かずに</strong>これらが使えます（抜粋）。</p>
+
+<table>
+<tr><th>メソッド</th><th>用途</th></tr>
+<tr><td><code>save(entity)</code></td><td>INSERT または UPDATE（保存）</td></tr>
+<tr><td><code>findById(id)</code></td><td>主キーで1件取得 → <code>Optional&lt;T&gt;</code></td></tr>
+<tr><td><code>findAll()</code></td><td>全件取得</td></tr>
+<tr><td><code>existsById(id)</code></td><td>存在チェック</td></tr>
+<tr><td><code>deleteById(id)</code></td><td>削除</td></tr>
+<tr><td><code>count()</code></td><td>件数</td></tr>
+</table>
+
+<div class="tip">
+🟣 <code>findById</code> が <code>Optional&lt;T&gt;</code> を返すのが重要。「見つからないかもしれない」を型で表現し、<code>null</code> チェック忘れを防ぐ設計です。<code>Optional</code> の扱いは Phase 1 で慣れておくと後が楽。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="derived">5. クエリメソッド命名規約（派生クエリ）</h2>
+
+<p>標準メソッドにないものは、<strong>メソッド名を規約どおりに書くだけで</strong> Spring が SQL を自動生成します（<span class="term" data-tooltip="メソッド名を解析してクエリを導出する仕組み">派生クエリ / derived query</span>）。</p>
+
+<table>
+<tr><th>キーワード</th><th>メソッド名の例</th><th>生成される条件</th></tr>
+<tr><td><code>findBy</code></td><td><code>findByExternalId(String externalId)</code></td><td><code>WHERE external_id = ?</code></td></tr>
+<tr><td><code>existsBy</code></td><td><code>existsByExternalId(String id)</code></td><td>存在するか（boolean）</td></tr>
+<tr><td><code>countBy</code></td><td><code>countByObservationPoint(...)</code></td><td>件数</td></tr>
+<tr><td><code>And / Or</code></td><td><code>findByAAndBB(...)</code></td><td><code>WHERE a = ? AND b = ?</code></td></tr>
+<tr><td><code>OrderBy ... Desc</code></td><td><code>findTopByXxxOrderByMeasuredAtDesc(...)</code></td><td>並べ替えて先頭1件</td></tr>
+<tr><td><code>Top / First</code></td><td><code>findTop10By...</code></td><td>件数制限</td></tr>
+</table>
+
+<div class="warning">
+🟡 <strong>注意：プロパティ名は「Entity のフィールド名（camelCase）」で書く</strong>。DB列名（snake_case）ではない。<br>
+例：<code>findByExternalId</code>（◯ フィールド <code>externalId</code>）／ <code>findByExternal_id</code>（✕）。<br>
+※ 命名規則ガイドの「Java↔DBの変換」と同じ理屈。メソッド名はJava世界なのでcamelCase。
+</div>
+
+<div class="implementation">
+🔵 複雑になったら <code>@Query</code> で JPQL/SQL を直接書く逃げ道もあります（Phase 3以降）。Phase 1は派生クエリで十分。
+</div>
+
+<div class="ref-link">📚 公式：<a href="https://docs.spring.io/spring-data/jpa/reference/jpa/query-methods.html" target="_blank">Spring Data JPA – Query Methods</a></div>
+
+<!-- ============================================================ -->
+<h2 id="thisproject">6. このプロジェクトで必要なメソッド（あなたが書く）</h2>
+
+<p>今すぐ全部は要りません。<strong>Phase 1 で確実に使う2つ</strong>を考えてみてください。実装はSpringがやるので、<strong>あなたは「正しいメソッド名のシグネチャ」を1行書くだけ</strong>。</p>
+
+<div class="user-task">
+🖊️ <strong>課題1（ObservationPoint）：external_id で1件探す</strong><br>
+API から取得した地点を保存する前に「もう登録済みか？」を <code>external_id</code> で調べたい。
+<ul>
+  <li>ヒント：戻り値は「見つからないかも」なので <code>Optional&lt;ObservationPoint&gt;</code>。</li>
+  <li>メソッド名は <code>findBy</code> + フィールド名。引数の型は？</li>
+</ul>
+</div>
+
+<div class="user-task">
+🖊️ <strong>課題2（PollenMeasurement）：重複保存を防ぐ</strong><br>
+同じ地点×同じ時刻の観測値を二重保存したくない（DBの複合UNIQUEと対）。保存前に「既に存在するか」を確認したい。
+<ul>
+  <li>ヒント：<code>existsBy</code> + <code>観測点</code> + <code>And</code> + <code>測定時刻</code>。引数は <code>ObservationPoint</code> と <code>Instant</code> の2つ。</li>
+  <li>戻り値の型は何が自然？</li>
+</ul>
+</div>
+
+<details>
+<summary>💡 詰まったらヒント（メソッド名の骨格だけ・型は自分で埋める）</summary>
+<pre><code>// ObservationPointRepository
+Optional&lt;ObservationPoint&gt; findByExternalId(___);
+
+// PollenMeasurementRepository
+boolean existsByObservationPointAndMeasuredAt(___, ___);</code></pre>
+<p>※ これは「形」のヒント。引数の型と <code>import</code> は自分で確認して補ってください。</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="annotation">7. <code>@Repository</code> は要る？</h2>
+
+<div class="concept">
+🟢 <strong>結論：付けなくても動く</strong>。<code>JpaRepository</code> を継承したインターフェースは Spring が自動で <span class="term" data-tooltip="Springが管理するオブジェクト。DIで他クラスに注入される">Bean</span> として登録します。<code>@Repository</code> を付けても害はない（明示の意味で付ける流派もある）。<strong>このプロジェクトでは省略でOK</strong>。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="pitfalls">8. やりがちな失敗</h2>
+
+<div class="danger">
+🔴 <strong>class で作ってしまう</strong>：Repository は <code>interface</code>。<code>class</code> にすると「実装しろ」と怒られる。実装はSpring任せ。
+</div>
+<div class="danger">
+🔴 <strong>ID の型を間違える</strong>：<code>JpaRepository&lt;ObservationPoint, Long&gt;</code> の2つ目は主キーの型。<code>id</code> が <code>Long</code> なら <code>Long</code>。<code>int</code> や <code>Integer</code> ではない。
+</div>
+<div class="warning">
+🟡 <strong>メソッド名にDB列名（snake_case）を書く</strong>：<code>findByExternal_id</code> ではなく <code>findByExternalId</code>（フィールド名）。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="check">9. 理解度チェック</h2>
+
+<details>
+<summary>Q1. Repository は <code>class</code> と <code>interface</code> どっち？ 実装は誰が書く？</summary>
+<p><code>interface</code>。実装は Spring Data JPA が起動時に自動生成する。自分では書かない。</p>
+</details>
+<details>
+<summary>Q2. <code>JpaRepository&lt;PollenMeasurement, ?&gt;</code> の <code>?</code> に入る型は？</summary>
+<p><code>Long</code>。<code>PollenMeasurement</code> の <code>id</code> フィールドが <code>Long</code> 型だから（主キーの型を指定する）。</p>
+</details>
+<details>
+<summary>Q3. 「external_id が一致する地点を1件」取るメソッド名は？ 戻り値の型は？</summary>
+<p><code>findByExternalId(String externalId)</code>。戻り値は <code>Optional&lt;ObservationPoint&gt;</code>（見つからない可能性を型で表す）。</p>
+</details>
+<details>
+<summary>Q4. <code>save()</code> や <code>findById()</code> は自分で書く必要がある？</summary>
+<p>不要。<code>JpaRepository</code> を継承した時点で標準装備される。</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="next">10. 次にやること</h2>
+
+<div class="user-task">
+🖊️ <strong>あなたの作業（この順で）</strong>
+<ol>
+  <li><code>com.fuku.pollen_notify.repository</code> パッケージを作る</li>
+  <li><code>ObservationPointRepository</code>（interface, <code>JpaRepository&lt;ObservationPoint, Long&gt;</code>）を書く</li>
+  <li><code>PollenMeasurementRepository</code> を書く（ID型は自分で確認）</li>
+  <li>課題1・課題2 のメソッドを各 Repository に1行ずつ足す</li>
+  <li><code>./gradlew compileJava</code> で BUILD SUCCESSFUL を確認</li>
+</ol>
+</div>
+
+<div class="tip">
+🟣 <strong>このあと</strong>：Repository ができたら、外部API（ポールンロボ）を叩く <strong>Client + DTO</strong> → 取得データを Entity に変換して保存する <strong>Service</strong> へ。<code>-9999</code>=欠測の判断や、<code>from(dto)</code> 命名はそのあたりで登場します。<br>
+なお Repository が<strong>実際にDBへ保存できるか</strong>は、Docker Compose で PostgreSQL を起動して初めて確認できます（コンパイル成功＝DB疎通成功ではない点に注意）。
+</div>
+
+<hr style="margin: 3rem 0; border: none; border-top: 1px dashed #cbd5e1;">
+<p style="text-align:center; color:#6b7280; font-size:0.9em;">Repository 実装ガイド ／ 花粉通知アプリ ／ 作成 2026-05-31</p>
+
+</body>
+</html>

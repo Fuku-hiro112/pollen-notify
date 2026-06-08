@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IntelliJ IDEA & Gradle 使い方ガイド | 花粉通知アプリ</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+         max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.75; color: #1f2937; background: #fafafa; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.5rem; font-size: 1.9rem; }
+  h2 { border-left: 5px solid #2563eb; padding-left: 0.6rem; margin-top: 2.6rem; font-size: 1.35rem; }
+  h3 { color: #1e40af; margin-top: 1.8rem; }
+  .term { border-bottom: 1px dotted #2563eb; cursor: help; }
+  .concept { background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .implementation { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .danger { background: #fee2e2; border-left: 4px solid #ef4444; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .tip { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #d1d5db; padding: 0.5rem 0.8rem; text-align: left; background: white; }
+  th { background: #f3f4f6; }
+  code { background: #eef2ff; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.9em; color: #3730a3; }
+  pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .toc { background: #f9fafb; border: 1px solid #e5e7eb; padding: 1rem 1.5rem; border-radius: 6px; }
+  .toc ol { margin: 0.3rem 0; }
+  .toc a { color: #2563eb; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  details { background: #f9fafb; padding: 0.8rem 1rem; border-radius: 4px; margin: 0.5rem 0; border: 1px solid #e5e7eb; }
+  summary { cursor: pointer; font-weight: bold; color: #1e40af; }
+  .diagram { margin: 1.5rem 0; text-align: center; }
+  kbd { background: #f3f4f6; border: 1px solid #d1d5db; border-bottom-width: 2px; border-radius: 4px; padding: 0.1rem 0.5rem; font-size: 0.85em; font-family: monospace; color: #111827; }
+  .step { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.4rem 1.3rem; margin: 1rem 0; }
+  .num { display: inline-block; width: 1.6rem; height: 1.6rem; line-height: 1.6rem; text-align: center; background: #2563eb; color: white; border-radius: 50%; font-weight: bold; font-size: 0.85rem; margin-right: 0.4rem; }
+  .ok { color: #059669; font-weight: bold; }
+  .ng { color: #dc2626; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>🛠 IntelliJ IDEA & Gradle 使い方ガイド</h1>
+
+<div class="concept">
+<strong>このページのゴール</strong><br>
+① <code>./gradlew compileJava</code> のようなコマンドを <strong>どこに打つのか</strong> を理解する。<br>
+② IntelliJ IDEA Community Edition 2025.2 の <strong>最低限の画面の見方・操作</strong> を覚える。<br>
+これさえ分かれば「コードを書く → ビルドして確認する → エラーを読む」のループを自力で回せます。
+</div>
+
+<div class="toc">
+<strong>目次</strong>
+<ol>
+  <li><a href="#what-is-gradlew"><code>./gradlew</code> とは何か（まず正体を知る）</a></li>
+  <li><a href="#where">コマンドを打つ場所は3つある</a></li>
+  <li><a href="#screen">IntelliJ の画面構成（迷子にならないために）</a></li>
+  <li><a href="#terminal">方法A：内蔵ターミナルで打つ（一番おすすめ）</a></li>
+  <li><a href="#gradle-panel">方法B：Gradle ツールウィンドウから実行（コマンド不要）</a></li>
+  <li><a href="#errors">ビルドエラーの読み方</a></li>
+  <li><a href="#shortcuts">覚えておくと速いショートカット</a></li>
+  <li><a href="#check">理解度チェック</a></li>
+  <li><a href="#next">次にやること</a></li>
+</ol>
+</div>
+
+<!-- ===================================================== -->
+<h2 id="what-is-gradlew">1. <code>./gradlew</code> とは何か</h2>
+
+<p><code>gradlew</code> は <span class="term" data-tooltip="Gradle Wrapper の略。プロジェクトごとに決められたバージョンのGradleを自動でダウンロード・実行してくれる仕組み">Gradle Wrapper</span>（グレイドル・ラッパー）と呼ばれるファイルで、プロジェクトのルート（一番上の階層）に置かれています。</p>
+
+<table>
+<tr><th>OS</th><th>使うファイル</th><th>打ち方の例</th></tr>
+<tr><td>macOS / Linux</td><td><code>gradlew</code></td><td><code>./gradlew compileJava</code></td></tr>
+<tr><td><strong>Windows（あなた）</strong></td><td><code>gradlew.bat</code></td><td><code>.\gradlew compileJava</code> または <code>gradlew compileJava</code></td></tr>
+</table>
+
+<div class="warning">
+<strong>Windowsでの注意：</strong> ネット上の記事は Mac 前提で <code>./gradlew</code> と書かれていることが多いです。Windows の <span class="term" data-tooltip="Windowsの新しい標準シェル。IntelliJの内蔵ターミナルもこれを使うことが多い">PowerShell</span> では <code>./gradlew</code> でも動きますが、迷ったら <code>.\gradlew</code>（バックスラッシュ）で打つのが確実です。先頭の <code>.\</code> は「今いるフォルダの中の」という意味です。
+</div>
+
+<div class="tip">
+<strong>💡 なぜ Wrapper を使うのか？</strong><br>
+あなたのPCに Gradle を別途インストールしていなくても、<code>gradlew</code> が「このプロジェクト用の正しいバージョンのGradle」を自動で用意して実行してくれます。チーム全員が同じバージョンでビルドできる＝「私のPCでは動くのに…」を防ぐ仕組みです。
+</div>
+
+<h3><code>compileJava</code> って何をするコマンド？</h3>
+<p>「Javaのソースコードだけをコンパイル（機械が読める形に変換）して、文法エラーがないか確かめる」タスクです。アプリの起動まではしません。<strong>「今書いたコードが文法的に正しいか」を素早く確認する</strong>のにちょうど良い、軽いコマンドです。</p>
+
+<table>
+<tr><th>コマンド</th><th>やること</th><th>使う場面</th></tr>
+<tr><td><code>gradlew compileJava</code></td><td>本体コードのコンパイルのみ</td><td>書いたコードのエラー確認（今これ）</td></tr>
+<tr><td><code>gradlew build</code></td><td>コンパイル＋テスト＋成果物作成</td><td>全部まとめて検証したいとき</td></tr>
+<tr><td><code>gradlew bootRun</code></td><td>Spring Boot アプリを起動</td><td>実際にアプリを動かすとき（Phase後半）</td></tr>
+</table>
+
+<!-- ===================================================== -->
+<h2 id="where">2. コマンドを打つ場所は3つある</h2>
+
+<p>「どこで打てばいい？」の答えは <strong>「次の3つのどれでもOK」</strong> です。やることは同じですが、おすすめ順に並べます。</p>
+
+<div class="diagram">
+<svg width="780" height="260" viewBox="0 0 780 260" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+  <!-- project root -->
+  <rect x="290" y="10" width="200" height="44" rx="6" fill="#dbeafe" stroke="#2563eb"/>
+  <text x="390" y="32" text-anchor="middle" font-size="13" fill="#1e3a8a">プロジェクトのルート</text>
+  <text x="390" y="48" text-anchor="middle" font-size="11" fill="#1e3a8a">pollen-notify/ （gradlew がある場所）</text>
+
+  <!-- arrows -->
+  <line x1="390" y1="54" x2="130" y2="110" stroke="#9ca3af" stroke-width="2"/>
+  <line x1="390" y1="54" x2="390" y2="110" stroke="#9ca3af" stroke-width="2"/>
+  <line x1="390" y1="54" x2="650" y2="110" stroke="#9ca3af" stroke-width="2"/>
+
+  <!-- A -->
+  <rect x="20" y="110" width="220" height="120" rx="8" fill="#ecfdf5" stroke="#10b981"/>
+  <text x="130" y="135" text-anchor="middle" font-size="13" font-weight="bold" fill="#065f46">方法A（推奨）</text>
+  <text x="130" y="158" text-anchor="middle" font-size="12" fill="#065f46">IntelliJ 内蔵</text>
+  <text x="130" y="175" text-anchor="middle" font-size="12" fill="#065f46">ターミナル</text>
+  <text x="130" y="200" text-anchor="middle" font-size="10" fill="#047857">コードを見ながら</text>
+  <text x="130" y="215" text-anchor="middle" font-size="10" fill="#047857">同じ画面で打てる</text>
+
+  <!-- B -->
+  <rect x="280" y="110" width="220" height="120" rx="8" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="390" y="135" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e40af">方法B</text>
+  <text x="390" y="158" text-anchor="middle" font-size="12" fill="#1e40af">Gradle ツール</text>
+  <text x="390" y="175" text-anchor="middle" font-size="12" fill="#1e40af">ウィンドウ</text>
+  <text x="390" y="200" text-anchor="middle" font-size="10" fill="#1d4ed8">クリックで実行</text>
+  <text x="390" y="215" text-anchor="middle" font-size="10" fill="#1d4ed8">コマンド暗記不要</text>
+
+  <!-- C -->
+  <rect x="540" y="110" width="220" height="120" rx="8" fill="#f9fafb" stroke="#9ca3af"/>
+  <text x="650" y="135" text-anchor="middle" font-size="13" font-weight="bold" fill="#374151">方法C</text>
+  <text x="650" y="158" text-anchor="middle" font-size="12" fill="#374151">OS のターミナル</text>
+  <text x="650" y="175" text-anchor="middle" font-size="12" fill="#374151">(PowerShell等)</text>
+  <text x="650" y="200" text-anchor="middle" font-size="10" fill="#4b5563">IntelliJの外で</text>
+  <text x="650" y="215" text-anchor="middle" font-size="10" fill="#4b5563">cd して打つ</text>
+</svg>
+</div>
+
+<div class="danger">
+<strong>共通の大前提：必ず「プロジェクトのルート」で打つこと。</strong><br>
+ルートとは <code>gradlew.bat</code> や <code>build.gradle.kts</code> が直接置いてあるフォルダ＝ <code>C:\dev\ClaudeProject\pollen-notify\pollen-notify\</code> です。<br>
+別のフォルダ（例：<code>src</code> の中）で打つと <span class="ng">「gradlew が見つからない」</span>エラーになります。方法A・Bは IntelliJ が自動でルートを基準にしてくれるので、この点でつまずきません。だから初心者には A・B がおすすめです。
+</div>
+
+<!-- ===================================================== -->
+<h2 id="screen">3. IntelliJ の画面構成</h2>
+
+<p>まず「どこに何があるか」を地図として頭に入れます。IntelliJ の画面は大きく4つの領域に分かれています。</p>
+
+<div class="diagram">
+<svg width="720" height="380" viewBox="0 0 720 380" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif">
+  <!-- whole window -->
+  <rect x="10" y="10" width="700" height="360" rx="6" fill="white" stroke="#374151" stroke-width="2"/>
+  <!-- top bar -->
+  <rect x="10" y="10" width="700" height="30" fill="#e5e7eb"/>
+  <text x="360" y="30" text-anchor="middle" font-size="12" fill="#374151">メニューバー / 上部ツールバー（▶ 実行ボタン・Gradle同期ボタンなど）</text>
+
+  <!-- left: project tool window -->
+  <rect x="10" y="40" width="170" height="270" fill="#ecfdf5" stroke="#10b981"/>
+  <text x="95" y="62" text-anchor="middle" font-size="12" font-weight="bold" fill="#065f46">① Project</text>
+  <text x="95" y="80" text-anchor="middle" font-size="10" fill="#047857">ファイル/フォルダ一覧</text>
+  <text x="95" y="98" text-anchor="middle" font-size="10" fill="#047857">src/main/java …</text>
+  <text x="95" y="116" text-anchor="middle" font-size="10" fill="#047857">ここでファイルを開く</text>
+
+  <!-- center: editor -->
+  <rect x="180" y="40" width="370" height="200" fill="#eff6ff" stroke="#3b82f6"/>
+  <text x="365" y="62" text-anchor="middle" font-size="12" font-weight="bold" fill="#1e40af">② エディタ（コードを書く主役）</text>
+  <text x="365" y="84" text-anchor="middle" font-size="10" fill="#1d4ed8">ObservationPoint.java など</text>
+  <text x="365" y="104" text-anchor="middle" font-size="10" fill="#1d4ed8">赤い波線 = エラー箇所</text>
+
+  <!-- right: gradle tool window -->
+  <rect x="550" y="40" width="160" height="270" fill="#f5f3ff" stroke="#8b5cf6"/>
+  <text x="630" y="62" text-anchor="middle" font-size="12" font-weight="bold" fill="#5b21b6">③ Gradle</text>
+  <text x="630" y="80" text-anchor="middle" font-size="10" fill="#6d28d9">タスク一覧</text>
+  <text x="630" y="98" text-anchor="middle" font-size="10" fill="#6d28d9">(方法Bで使う)</text>
+
+  <!-- bottom: terminal / build -->
+  <rect x="180" y="240" width="370" height="70" fill="#fef3c7" stroke="#f59e0b"/>
+  <text x="365" y="262" text-anchor="middle" font-size="12" font-weight="bold" fill="#92400e">④ 下部ツールウィンドウ</text>
+  <text x="365" y="282" text-anchor="middle" font-size="10" fill="#b45309">Terminal（方法A）/ Build（結果表示）/ Run</text>
+
+  <!-- bottom bar -->
+  <rect x="10" y="310" width="700" height="60" fill="#f3f4f6"/>
+  <text x="360" y="335" text-anchor="middle" font-size="11" fill="#374151">⑤ 左端・下端の細いバー = ツールウィンドウの開閉ボタンが並ぶ</text>
+  <text x="360" y="354" text-anchor="middle" font-size="10" fill="#6b7280">「Terminal」「Gradle」「Project」などの文字をクリックで開閉</text>
+</svg>
+</div>
+
+<div class="tip">
+<strong>💡 ツールウィンドウとは：</strong> IntelliJ では、画面の端から出てくるパネル（Project, Terminal, Gradle など）を<span class="term" data-tooltip="ツールウィンドウ。エディタの周りに配置される補助パネル。端のボタンや Alt+数字 で開閉する">ツールウィンドウ</span>と呼びます。普段は隠れていて、端のボタンを押すと出てきます。「見当たらない」ときは閉じているだけなので、端のバーを探してください。
+</div>
+
+<!-- ===================================================== -->
+<h2 id="terminal">4. 方法A：内蔵ターミナルで打つ（おすすめ）</h2>
+
+<p>コードを見ながら同じウィンドウ内でコマンドを打てるので、これが一番ラクです。</p>
+
+<div class="step">
+<p><span class="num">1</span> IntelliJ で <strong>pollen-notify プロジェクトを開いている</strong>状態にする。<br>
+（もし開いていなければ：上部メニュー <kbd>File</kbd> → <kbd>Open…</kbd> →
+<code>C:\dev\ClaudeProject\pollen-notify\pollen-notify</code> フォルダを選ぶ）</p>
+</div>
+
+<div class="step">
+<p><span class="num">2</span> 内蔵ターミナルを開く。次のどちらかで開けます：</p>
+<ul>
+  <li>画面下端（または左下）の <kbd>Terminal</kbd> という文字をクリック</li>
+  <li>ショートカット <kbd>Alt</kbd> + <kbd>F12</kbd></li>
+  <li>見つからなければ：上部メニュー <kbd>View</kbd> → <kbd>Tool Windows</kbd> → <kbd>Terminal</kbd></li>
+</ul>
+</div>
+
+<div class="step">
+<p><span class="num">3</span> 開いたターミナルの行頭が、すでにプロジェクトのルートになっているはずです。例：</p>
+<pre><code>PS C:\dev\ClaudeProject\pollen-notify\pollen-notify&gt;</code></pre>
+<p>この <code>PS</code> は PowerShell の印。末尾が <code>pollen-notify&gt;</code> なら正しい場所です。</p>
+</div>
+
+<div class="step">
+<p><span class="num">4</span> コマンドを打って <kbd>Enter</kbd>：</p>
+<pre><code>.\gradlew compileJava</code></pre>
+<p>成功すると <code class="ok">BUILD SUCCESSFUL</code>、失敗すると <code class="ng">BUILD FAILED</code> とエラー内容が表示されます。</p>
+</div>
+
+<div class="warning">
+<strong>初回は時間がかかります。</strong> 一番最初の実行では Gradle 本体や依存ライブラリのダウンロードが走るため、数十秒〜数分かかることがあります。2回目以降は速くなります。固まったように見えても、しばらく待ってください。
+</div>
+
+<!-- ===================================================== -->
+<h2 id="gradle-panel">5. 方法B：Gradle ツールウィンドウから実行（コマンド不要）</h2>
+
+<p>「コマンドを覚えたくない／打ち間違えが不安」という場合は、クリックだけで実行できます。</p>
+
+<div class="step">
+<p><span class="num">1</span> 画面右端の <kbd>Gradle</kbd>（象のアイコン🐘）をクリックして Gradle ツールウィンドウを開く。<br>
+（無ければ <kbd>View</kbd> → <kbd>Tool Windows</kbd> → <kbd>Gradle</kbd>）</p>
+</div>
+
+<div class="step">
+<p><span class="num">2</span> ツリーを次のようにたどる：</p>
+<pre><code>pollen-notify
+└─ Tasks
+   └─ build
+      └─ compileJava   ← これをダブルクリック</code></pre>
+</div>
+
+<div class="step">
+<p><span class="num">3</span> ダブルクリックすると自動で実行され、下部の <kbd>Build</kbd> / <kbd>Run</kbd> ウィンドウに結果が出ます。</p>
+</div>
+
+<div class="tip">
+<strong>💡 Tasks が表示されないとき：</strong> Gradle ツールウィンドウ上部の歯車から「Gradleタスクを一覧表示」設定が要る場合があります。面倒なら<strong>方法A（ターミナル）の方が確実</strong>です。まずは方法Aを基本にして大丈夫。
+</div>
+
+<!-- ===================================================== -->
+<h2 id="errors">6. ビルドエラーの読み方</h2>
+
+<p>エラーは怖がらず「ファイル名・行番号・メッセージ」の3点を読みます。たとえば今日あなたが遭遇したエラー：</p>
+
+<pre><code>ObservationPoint.java:22: エラー: シンボルを見つけられません
+@NoArgsConstructor(access = PROTECTED)
+                            ^  シンボル: 変数 PROTECTED</code></pre>
+
+<table>
+<tr><th>読む場所</th><th>意味</th></tr>
+<tr><td><code>ObservationPoint.java</code></td><td>どのファイルか</td></tr>
+<tr><td><code>:22</code></td><td>22行目（IntelliJでこの数字をクリックすると該当行へ飛べる）</td></tr>
+<tr><td><code>シンボルを見つけられません</code></td><td>その名前が定義されていない／importされていない</td></tr>
+<tr><td><code>^</code> の位置</td><td>問題のある列を指す矢印</td></tr>
+</table>
+
+<div class="tip">
+<strong>💡 IntelliJ なら打つ前に気づける：</strong> エディタ上でエラー箇所には<strong>赤い波線</strong>が引かれます。マウスを乗せると理由がポップアップし、<kbd>Alt</kbd> + <kbd>Enter</kbd> で「import を追加」などの修正候補が出ます。ターミナルでビルドする前に、まず赤い波線を見る癖をつけると速いです。
+</div>
+
+<div class="warning">
+<strong>ただし注意：</strong> Lombok のように<span class="term" data-tooltip="コンパイル時にコードを自動生成する仕組み。アノテーションプロセッサ">アノテーション処理</span>が絡むエラーは、IDEの表示とコマンドのビルド結果が食い違うことがあります。<strong>最終的な正解は <code>gradlew compileJava</code> の結果</strong>だと考えてください（実際のコンパイラが下す判定だからです）。
+</div>
+
+<!-- ===================================================== -->
+<h2 id="shortcuts">7. 覚えておくと速いショートカット（Windows）</h2>
+
+<table>
+<tr><th>ショートカット</th><th>機能</th></tr>
+<tr><td><kbd>Shift</kbd> ×2（連打）</td><td>何でも検索（ファイル・クラス・設定）。一番便利</td></tr>
+<tr><td><kbd>Alt</kbd> + <kbd>F12</kbd></td><td>ターミナルを開く/閉じる</td></tr>
+<tr><td><kbd>Alt</kbd> + <kbd>Enter</kbd></td><td>エラー箇所で修正候補を出す（import追加など）</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>保存（※IntelliJは自動保存だが、ビルド前に押すと安心）</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>L</kbd></td><td>コード整形（インデントを自動で揃える）</td></tr>
+<tr><td><kbd>Ctrl</kbd> + <kbd>B</kbd></td><td>定義へジャンプ（メソッドやクラスの中身を見る）</td></tr>
+<tr><td><kbd>Shift</kbd> + <kbd>F10</kbd></td><td>直前の構成を実行（アプリ起動など、Phase後半で使う）</td></tr>
+</table>
+
+<!-- ===================================================== -->
+<h2 id="check">8. 理解度チェック</h2>
+
+<details>
+<summary>Q1. <code>gradlew compileJava</code> は、プロジェクトのどのフォルダで打つべき？</summary>
+<p><strong>A.</strong> <code>gradlew.bat</code> / <code>build.gradle.kts</code> が直接置いてあるルートフォルダ（<code>...\pollen-notify\pollen-notify\</code>）。方法A・Bを使えば IntelliJ が自動でこの場所を基準にしてくれる。</p>
+</details>
+
+<details>
+<summary>Q2. <code>compileJava</code> と <code>build</code> の違いは？</summary>
+<p><strong>A.</strong> <code>compileJava</code> はコンパイル（文法チェック）だけ。<code>build</code> はコンパイル＋テスト＋成果物作成まで全部やる。今は「書いたコードの文法確認」が目的なので軽い <code>compileJava</code> で十分。</p>
+</details>
+
+<details>
+<summary>Q3. エディタに赤い波線が無いのに <code>gradlew compileJava</code> が失敗した。どちらを信じる？</summary>
+<p><strong>A.</strong> コマンドの結果（実際のコンパイラの判定）を信じる。特に Lombok などアノテーション処理が絡むと、IDE表示とコンパイル結果がズレることがある。</p>
+</details>
+
+<details>
+<summary>Q4. Windowsで <code>./gradlew</code> と <code>.\gradlew</code>、どちらが確実？</summary>
+<p><strong>A.</strong> PowerShellではどちらも動くが、Windowsの流儀は <code>.\gradlew</code>（バックスラッシュ）。迷ったらこちら。先頭の <code>.\</code> は「今いるフォルダの中の」という意味。</p>
+</details>
+
+<!-- ===================================================== -->
+<h2 id="next">9. 次にやること</h2>
+
+<div class="implementation">
+<ol>
+  <li><strong>残り1個のコンパイルエラーを直す</strong>：<code>ObservationPoint.java:22</code> の <code>@NoArgsConstructor(access = PROTECTED)</code> を、<code>AccessLevel.PROTECTED</code> と書く（A案）か、<code>import static lombok.AccessLevel.PROTECTED;</code> を足す（B案）。<br>
+  ヒント：すでに 17行目で <code>import static jakarta.persistence.GenerationType.SEQUENCE;</code> と同じことをやっている。</li>
+  <li>方法A（内蔵ターミナル）で <code>.\gradlew compileJava</code> を打ち、<code class="ok">BUILD SUCCESSFUL</code> を自分の目で確認する。</li>
+  <li>通ったら、<code>PollenMeasurement.java</code> も同じ要領でコンパイルを通す。</li>
+</ol>
+</div>
+
+<div class="tip">
+<strong>🔭 この先（Phase 4への伏線）：</strong> 今は「コンパイルが通ること」がゴールですが、Phase 4 のDDDリファクタでは、この <code>ObservationPoint</code> を<span class="term" data-tooltip="関連するオブジェクトを1つの塊として扱う境界。整合性を保つ単位">集約</span>の単位として捉え直し、「どうやって正しく生成・変更させるか（ファクトリ・不変条件）」を設計し直します。今 <code>@NoArgsConstructor(access = PROTECTED)</code> で「外から勝手に空インスタンスを作らせない」としているのは、その伏線です。</p>
+</div>
+
+<hr style="margin: 3rem 0; border: none; border-top: 1px dashed #cbd5e1;">
+<p style="text-align: center; color: #6b7280; font-size: 0.9em;">花粉通知アプリ ／ IntelliJ & Gradle 使い方ガイド ／ 作成 2026-05-31</p>
+
+</body>
+</html>
