@@ -40,6 +40,11 @@ public class PollenMeasurement {
     @Column(name = "created_at" ,nullable=false)
     private Instant createdAt;
 
+    @PrePersist
+    void onCreate() {
+        this.createdAt = Instant.now();
+    }
+
     public static PollenMeasurement of(ObservationPoint observationPoint, Instant at, int count) {
         if (count < 0) {
             throw new IllegalArgumentException("pollenCount must be >= 0 but was " + count);

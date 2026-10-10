@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>外部API連携ガイド（RestClient + CSV + DTO → Entity）| 花粉通知アプリ</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+         max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.75; color: #1f2937; background: #fafafa; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.5rem; font-size: 1.75rem; }
+  h2 { border-left: 5px solid #2563eb; padding-left: 0.6rem; margin-top: 2.5rem; font-size: 1.3rem; }
+  h3 { margin-top: 1.5rem; font-size: 1.06rem; color: #374151; }
+  .term { border-bottom: 1px dotted #2563eb; cursor: help; }
+  .concept { background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .implementation { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .danger { background: #fee2e2; border-left: 4px solid #ef4444; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .tip { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .user-task { background: #fff7ed; border: 1px dashed #f97316; padding: 0.8rem 1rem; margin: 1rem 0; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+  th, td { border: 1px solid #d1d5db; padding: 0.5rem 0.8rem; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  code { background: #eef2f7; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: "Consolas","Menlo",monospace; }
+  pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .toc { background: #f9fafb; border: 1px solid #e5e7eb; padding: 1rem 1.5rem; border-radius: 6px; }
+  .toc ol { margin: 0.3rem 0; }
+  .toc a { color: #2563eb; text-decoration: none; }
+  details { background: #f9fafb; padding: 0.8rem 1rem; border-radius: 4px; margin: 0.5rem 0; border: 1px solid #e5e7eb; }
+  summary { cursor: pointer; font-weight: bold; }
+  .ref-link { font-size: 0.88rem; color: #6b7280; margin-top: 0.6rem; }
+  .ref-link a { color: #2563eb; }
+  .diagram { margin: 1.5rem 0; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>🌐 外部API連携ガイド（RestClient + CSV + DTO → Entity）</h1>
+<p style="color:#6b7280;">花粉通知アプリ ／ 2026-06-03 ／ Phase 1 本丸 ／ ポールンロボAPI取得・保存</p>
+
+<div class="concept">
+<strong>このステップのゴール</strong><br>
+ウェザーニューズ「ポールンロボ」APIから花粉飛散数を取得し、<code>PollenMeasurement.of(...)</code> で Entity に変換して <code>repository.save()</code> で保存する——という Phase 1 の中心機能を作ります。<br>
+<strong>重要</strong>：このAPIのレスポンスは <strong>CSV形式</strong>です（<code>build.gradle.kts</code> に <code>commons-csv</code> を入れてあるのがその準備）。JSONではない点を最初に押さえてください。
+</div>
+
+<div class="toc">
+<strong>📑 目次</strong>
+<ol>
+  <li><a href="#flow">全体フロー（4層）</a></li>
+  <li><a href="#step0">Step 0: まず本物のレスポンスを見る（最重要）</a></li>
+  <li><a href="#client">Step 1: Client（RestClientでCSVを取得）</a></li>
+  <li><a href="#dto">Step 2: DTO（CSV1行を表す入れ物）</a></li>
+  <li><a href="#parse">Step 3: CSVをパースしてDTOにする</a></li>
+  <li><a href="#map">Step 4: DTO → Entity 変換（-9999の判断）</a></li>
+  <li><a href="#service">Step 5: Service（全体を束ねる）</a></li>
+  <li><a href="#config">設定値（base-url / citycode）の注入</a></li>
+  <li><a href="#pitfalls">やりがちな失敗</a></li>
+  <li><a href="#check">理解度チェック</a></li>
+  <li><a href="#next">次にやること</a></li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="flow">1. 全体フロー（4層）</h2>
+
+<div class="diagram">
+<svg width="760" height="170" viewBox="0 0 760 170" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif" font-size="12">
+  <defs>
+    <marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#9ca3af"/>
+    </marker>
+  </defs>
+  <rect x="10"  y="60" width="120" height="50" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
+  <text x="70" y="80" text-anchor="middle" font-weight="bold" fill="#92400e">ポールンロボ</text>
+  <text x="70" y="98" text-anchor="middle" fill="#92400e" font-size="11">API (CSV)</text>
+
+  <rect x="170" y="60" width="120" height="50" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="230" y="80" text-anchor="middle" font-weight="bold" fill="#1e40af">Client</text>
+  <text x="230" y="98" text-anchor="middle" fill="#1e40af" font-size="11">RestClientで取得</text>
+
+  <rect x="330" y="60" width="120" height="50" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="390" y="80" text-anchor="middle" font-weight="bold" fill="#1e40af">DTO</text>
+  <text x="390" y="98" text-anchor="middle" fill="#1e40af" font-size="11">CSV1行=1個</text>
+
+  <rect x="490" y="60" width="120" height="50" rx="6" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="550" y="80" text-anchor="middle" font-weight="bold" fill="#166534">Entity</text>
+  <text x="550" y="98" text-anchor="middle" fill="#166534" font-size="11">of()で生成</text>
+
+  <rect x="650" y="60" width="100" height="50" rx="6" fill="#ede9fe" stroke="#8b5cf6" stroke-width="2"/>
+  <text x="700" y="80" text-anchor="middle" font-weight="bold" fill="#5b21b6">DB</text>
+  <text x="700" y="98" text-anchor="middle" fill="#5b21b6" font-size="11">save()</text>
+
+  <line x1="130" y1="85" x2="168" y2="85" stroke="#9ca3af" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="290" y1="85" x2="328" y2="85" stroke="#9ca3af" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="450" y1="85" x2="488" y2="85" stroke="#9ca3af" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="610" y1="85" x2="648" y2="85" stroke="#9ca3af" stroke-width="2" marker-end="url(#ar)"/>
+
+  <text x="380" y="30" text-anchor="middle" fill="#374151" font-weight="bold">Service が全体を束ねる（取得→変換→保存）</text>
+  <line x1="230" y1="40" x2="230" y2="58" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3"/>
+  <line x1="550" y1="40" x2="550" y2="58" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="3"/>
+</svg>
+</div>
+
+<table>
+<tr><th>層</th><th>役割</th><th>書くファイル</th><th>あなたが書くか</th></tr>
+<tr><td><strong>Client</strong></td><td>HTTPでAPIを叩き、CSV文字列を取得（＋パース）</td><td><code>client/PollenApiClient.java</code></td><td>🖊️ 書く（学習対象）</td></tr>
+<tr><td><strong>DTO</strong></td><td>CSVの1行を表すただの入れ物</td><td><code>dto/PollenCsvRow.java</code></td><td>🖊️ 書く</td></tr>
+<tr><td><strong>変換</strong></td><td>DTO → <code>PollenMeasurement</code>（欠測判断）</td><td><code>service/PollenIngestService.java</code> 内のメソッド</td><td>🖊️ 書く（ドメインの核）</td></tr>
+<tr><td><strong>Service</strong></td><td>取得→変換→保存を束ねる。重複防止</td><td><code>service/PollenIngestService.java</code></td><td>🖊️ 書く</td></tr>
+</table>
+
+<h3>📁 パッケージ構成（どこに新規ファイルを作るか）</h3>
+<pre><code>com.fuku.pollen_notify
+├── PollenNotifyApplication.java        （既存：起動クラス）
+├── entity/
+│   ├── ObservationPoint.java           （既存）
+│   └── PollenMeasurement.java          （既存）
+├── repository/
+│   ├── ObservationPointRepository.java （既存）
+│   └── PollenMeasurementRepository.java（既存）
+├── client/                             ★新規パッケージ
+│   └── PollenApiClient.java            ★API取得＋CSVパース
+├── dto/                                ★新規パッケージ
+│   └── PollenCsvRow.java               ★CSV1行を表すrecord
+└── service/                            ★新規パッケージ
+    └── PollenIngestService.java        ★取得→変換→保存を束ねる</code></pre>
+
+<div class="implementation">
+🔵 <strong>物理パス</strong>：<code>src/main/java/com/fuku/pollen_notify/&lt;パッケージ&gt;/&lt;クラス&gt;.java</code><br>
+例：<code>src/main/java/com/fuku/pollen_notify/client/PollenApiClient.java</code><br>
+IntelliJなら <code>com.fuku.pollen_notify</code> を右クリック →「New → Package」で <code>client</code> 等を作り、その中に「New → Java Class / Record」。
+</div>
+
+<div class="tip">
+🟣 <strong>パッケージ名は単数形</strong>（<code>client</code> <code>dto</code> <code>service</code>）が慣習。<code>entity</code> <code>repository</code> も単数で揃えている。<br>
+🟣 Phase 1は<strong>シンプルさ優先</strong>で「層＝パッケージ」の素直な構成。Phase 4のDDDリファクタで <code>domain</code> / <code>application</code> / <code>infrastructure</code> といった構成に組み替える（伏線）。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="step0">2. Step 0: まず本物のレスポンスを見る（最重要）</h2>
+
+<div class="danger">
+🔴 <strong>DTOを設計する前に、必ず実際のレスポンスを見ること。</strong> 列が何か・区切りは何か・ヘッダ行はあるか・欠測値は本当に <code>-9999</code> か——これを<strong>推測で書くとほぼ確実にズレます</strong>。まず1回叩いて目で見る。
+</div>
+
+<div class="user-task">
+🖊️ <strong>あなたの作業</strong>：ターミナルで実際に叩いてCSVを観察する。<code>&lt;citycode&gt;</code> は対象市区町村コード（例は自分の地域で）。
+<pre><code># PowerShell / bash 共通（base-url は application.yml のもの）
+curl "https://wxtech.weathernews.com/opendata/v1/pollen?citycode=&lt;citycode&gt;"</code></pre>
+確認すること：
+<ul>
+  <li>1行目はヘッダ（列名）か、いきなりデータか</li>
+  <li>列は何か（例：<code>citycode, date, pollen</code> のような並び）</li>
+  <li>日時のフォーマット（<code>2026-03-01 09:00:00</code> 等）</li>
+  <li>欠測は <code>-9999</code> で表現されているか</li>
+</ul>
+</div>
+
+<div class="tip">
+🟣 観察した実際の列構成を、このプロジェクトの<strong>ユビキタス言語</strong>（CLAUDE.md用語集）と対応づけてメモしておくと、DTO設計が一気に楽になります。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="client">3. Step 1: Client（RestClientでCSVを取得）</h2>
+
+<p style="margin:0.3rem 0;">📁 <strong>ファイル</strong>：<code>src/main/java/com/fuku/pollen_notify/client/PollenApiClient.java</code>（<code>client</code> パッケージを新規作成）</p>
+
+<p><span class="term" data-tooltip="Spring 6.1+ / Boot 3.2+ の同期HTTPクライアント。RestTemplateの後継">RestClient</span> を使います（モダンな同期HTTPクライアント。古い教材の <code>RestTemplate</code> ではなくこちら）。今回はレスポンスを<strong>CSV文字列（String）そのまま</strong>受け取ります（パースは次のステップ）。</p>
+
+<div class="implementation">
+🔵 <strong>形（穴埋めしてください）</strong>
+<pre><code>@Component
+public class PollenApiClient {
+
+    private final RestClient restClient;
+
+    // base-url を注入して RestClient を組み立てる（@Value か設定クラス。後述）
+    public PollenApiClient(@Value("${pollen-api.base-url}") String baseUrl) {
+        this.restClient = RestClient.create(baseUrl);
+    }
+
+    /** citycode を指定して CSV 文字列を取得する */
+    public String fetchRawCsv(String cityCode) {
+        return restClient.get()
+                .uri(uriBuilder -> uriBuilder.queryParam("citycode", ___).build())
+                .retrieve()
+                .body(String.class);   // ← CSVをそのまま文字列で受ける
+    }
+}</code></pre>
+</div>
+
+<div class="warning">
+🟡 <code>@Component</code> を付けてSpringのBeanにする（DIで Service に注入するため）。<code>RestClient</code> の生成はコンストラクタで1回だけ（毎回作らない）。
+</div>
+
+<div class="ref-link">📚 公式：<a href="https://docs.spring.io/spring-framework/reference/integration/rest-clients.html#rest-restclient" target="_blank">Spring RestClient</a></div>
+
+<!-- ============================================================ -->
+<h2 id="dto">4. Step 2: DTO（CSV1行を表す入れ物）</h2>
+
+<p style="margin:0.3rem 0;">📁 <strong>ファイル</strong>：<code>src/main/java/com/fuku/pollen_notify/dto/PollenCsvRow.java</code>（<code>dto</code> パッケージを新規作成。Javaの <code>record</code> として作る）</p>
+
+<div class="concept">
+🟢 <span class="term" data-tooltip="Data Transfer Object。層をまたいでデータを運ぶためのただの入れ物">DTO</span> は「APIの形」をそのまま写した入れ物。Entityとは別物にするのが鉄則：<strong>APIの都合（CSVの列）とDBの都合（テーブル）を分離</strong>するため。APIが変わってもEntityを守れる。
+</div>
+
+<div class="user-task">
+🖊️ <strong>あなたの作業</strong>：Step 0 で見た列に合わせて DTO を作る。Java の <code>record</code> が最適（不変・簡潔）。
+<pre><code>// 例（実際の列はStep 0の観察に合わせる）
+public record PollenCsvRow(
+        String cityCode,
+        Instant measuredAt,
+        int pollenCount
+) {}</code></pre>
+</div>
+
+<div class="tip">
+🟣 <strong>なぜ record か</strong>：DTOは「運ぶだけ」で振る舞いを持たない。<code>record</code> なら getter・equals・toString が自動で、不変（変更不可）。Phase 4でも値オブジェクトの足がかりになる考え方。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="parse">5. Step 3: CSVをパースしてDTOにする</h2>
+
+<p style="margin:0.3rem 0;">📁 <strong>ファイル</strong>：<code>client/PollenApiClient.java</code> 内のメソッドとして書く（Step 1 と同じファイル）。Client が「CSVを取得し、<code>List&lt;PollenCsvRow&gt;</code> として返す窓口」になる。<br><span style="color:#6b7280;font-size:0.9em;">※ Phase 1はこれで十分。将来パースが複雑化したら <code>client/PollenCsvParser.java</code> に切り出す。</span></p>
+
+<p>取得したCSV文字列を <span class="term" data-tooltip="Apache Commons CSV。CSVを安全に解析するライブラリ">Apache Commons CSV</span> で1行ずつDTOに変換します（手で <code>split(",")</code> しない：引用符やカンマ混入で壊れるため）。</p>
+
+<div class="implementation">
+🔵 <strong>形（骨格）</strong>
+<pre><code>// CSV文字列 → List&lt;PollenCsvRow&gt;
+List&lt;PollenCsvRow&gt; parse(String csv) throws IOException {
+    CSVFormat format = CSVFormat.DEFAULT.builder()
+            .setHeader()              // 1行目をヘッダとして扱う（Step 0で確認した形に合わせる）
+            .setSkipHeaderRecord(true)
+            .build();
+
+    try (CSVParser parser = CSVParser.parse(csv, format)) {
+        List&lt;PollenCsvRow&gt; rows = new ArrayList&lt;&gt;();
+        for (CSVRecord record : parser) {
+            String cityCode = record.get("___");        // 列名 or インデックス
+            int count       = Integer.parseInt(record.get("___"));
+            Instant at      = /* 日時文字列をInstantへ変換（DateTimeFormatter） */;
+            rows.add(new PollenCsvRow(cityCode, at, count));
+        }
+        return rows;
+    }
+}</code></pre>
+</div>
+
+<div class="warning">
+🟡 日時のパースは詰まりやすい。CSVの文字列（例 <code>2026-03-01 09:00:00</code>）には<strong>タイムゾーン情報が無い</strong>ことが多い。「これは日本時間(JST)」と解釈して <code>Instant</code>（UTC基準）へ変換する必要がある。<code>LocalDateTime.parse(...).atZone(ZoneId.of("Asia/Tokyo")).toInstant()</code> のような流れ。<code>application.yml</code> で <code>time_zone: UTC</code> にしてあるのと整合させる。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="map">6. Step 4: DTO → Entity 変換（-9999の判断）</h2>
+
+<p style="margin:0.3rem 0;">📁 <strong>ファイル</strong>：<code>service/PollenIngestService.java</code> 内のメソッドとして書く（地点解決に Repository が要るため、Service内が自然）。専用クラスに分けるのは Phase 4 で検討。</p>
+
+<p>ここが<strong>ドメインの核</strong>。前に作った静的ファクトリ <code>PollenMeasurement.of(...)</code> を使います。そしてここで <strong><code>-9999</code>＝欠測の判断</strong>を入れます（以前話した「API解析層で弾く」がここ）。</p>
+
+<div class="user-task">
+🖊️ <strong>あなたが考えること</strong>
+<ul>
+  <li><code>-9999</code>（欠測）の行は、<code>PollenMeasurement</code> を作らず<strong>スキップ</strong>する（保存しない）。<code>of()</code> の負数ガードに到達する前に、ここで除外するのが筋。</li>
+  <li><code>of()</code> は <code>ObservationPoint</code> を要求する。CSVには <code>cityCode</code>(=external_id) しかない。<strong>地点をどう用意する？</strong> → <code>observationPointRepository.findByExternalId(cityCode)</code> で取得（無ければ新規作成して保存）。ここで前に作ったメソッドが活きる！</li>
+</ul>
+</div>
+
+<div class="implementation">
+🔵 <strong>変換メソッドの命名</strong>：DTO（別の型）から作るので、命名規則ガイドのとおり <code>from</code> が自然。
+<pre><code>// 例：マッパー的なメソッド
+PollenMeasurement toEntity(PollenCsvRow row, ObservationPoint point) {
+    return PollenMeasurement.of(point, row.measuredAt(), row.pollenCount());
+}
+// 欠測(-9999)行は、ここを呼ぶ前にフィルタで除外する</code></pre>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="service">7. Step 5: Service（全体を束ねる）</h2>
+
+<p style="margin:0.3rem 0;">📁 <strong>ファイル</strong>：<code>src/main/java/com/fuku/pollen_notify/service/PollenIngestService.java</code>（<code>service</code> パッケージを新規作成）</p>
+
+<p>Client・変換・Repository を組み合わせ、「<strong>取得 → パース → 欠測除外 → 地点解決 → 重複チェック → 保存</strong>」を1つの流れにします。</p>
+
+<div class="implementation">
+🔵 <strong>骨格（流れの設計図）</strong>
+<pre><code>@Service
+public class PollenIngestService {
+
+    private final PollenApiClient client;
+    private final ObservationPointRepository pointRepo;
+    private final PollenMeasurementRepository measurementRepo;
+
+    // コンストラクタインジェクション（@Autowired不要：引数1コンストラクタは自動注入）
+    public PollenIngestService(PollenApiClient client,
+                               ObservationPointRepository pointRepo,
+                               PollenMeasurementRepository measurementRepo) { ... }
+
+    @Transactional
+    public void ingest(String cityCode) {
+        String csv = client.fetchRawCsv(cityCode);
+        List&lt;PollenCsvRow&gt; rows = parse(csv);
+
+        // 1. 地点を解決（無ければ作る）
+        ObservationPoint point = pointRepo.findByExternalId(cityCode)
+                .orElseGet(() -> /* 新規作成して save */ );
+
+        for (PollenCsvRow row : rows) {
+            // 2. 欠測(-9999)はスキップ
+            // 3. 重複チェック：existsByObservationPointAndMeasuredAt
+            // 4. PollenMeasurement.of(...) を save
+        }
+    }
+}</code></pre>
+</div>
+
+<div class="concept">
+🟢 <strong><code>@Transactional</code> をServiceに付ける意味</strong>：複数行の保存を「全部成功か全部失敗」の1単位にする。前の「内部の仕組み」HTMLで触れた、Repository単体トランザクションを<strong>Service側で束ねる</strong>ケースがこれ。
+</div>
+
+<div class="tip">
+🟣 <strong>重複防止の合わせ技</strong>：保存前に <code>existsByObservationPointAndMeasuredAt</code> でチェック（アプリ側）＋ DBの複合UNIQUE制約（最後の砦）。二重で守るのが堅牢な設計。前に作った両方がここで噛み合う。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="config">8. 設定値（base-url / citycode）の注入</h2>
+
+<p><code>application.yml</code> の <code>pollen-api.base-url</code> をコードに渡す方法は2つ。</p>
+
+<table>
+<tr><th>方法</th><th>書き方</th><th>向き</th></tr>
+<tr><td><code>@Value</code></td><td><code>@Value("${pollen-api.base-url}") String url</code></td><td>値が1〜2個の今はこれで十分</td></tr>
+<tr><td><code>@ConfigurationProperties</code></td><td>設定専用クラスにまとめる</td><td>設定項目が増えてきたら（citycode一覧など）こちらへ</td></tr>
+</table>
+
+<div class="warning">
+🟡 <code>citycode</code> は当面ハードコードや <code>application.yml</code> 直書きでOK（Phase 1は動作優先）。Phase 3で「ユーザーが地域を設定」するときに <code>observation_points</code> テーブル管理へ移行する（伏線）。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="pitfalls">9. やりがちな失敗</h2>
+
+<div class="danger">🔴 <strong>DTOを使わずEntityに直接APIをマッピング</strong>：APIの形がEntityに侵食し、API変更でEntity（とDB）が巻き込まれる。必ずDTOで分離。</div>
+<div class="danger">🔴 <strong><code>split(",")</code> で手パース</strong>：値中のカンマや引用符で壊れる。Commons CSV を使う。</div>
+<div class="warning">🟡 <strong>日時をタイムゾーン無視で変換</strong>：JSTのつもりがUTCで保存され9時間ズレる。<code>ZoneId</code> を明示。</div>
+<div class="warning">🟡 <strong>欠測(-9999)をそのまま保存しようとして例外</strong>：<code>of()</code> の負数ガードで落ちる。<strong>保存対象を作る前にスキップ</strong>するのが正しい流れ。</div>
+
+<!-- ============================================================ -->
+<h2 id="check">10. 理解度チェック</h2>
+
+<details>
+<summary>Q1. なぜ DTO と Entity を分けるのか？</summary>
+<p>APIの都合（CSVの列構成）とDBの都合（テーブル設計）を分離するため。APIが変わってもEntity/DBを守れる。混ぜるとAPI変更がDBまで波及する。</p>
+</details>
+<details>
+<summary>Q2. <code>-9999</code>（欠測）はどこで弾くのが正しい？ なぜ <code>of()</code> のガードだけではダメ？</summary>
+<p>API解析層（変換前）でスキップするのが正しい。<code>of()</code> のガードは「不正値の観測を作らせない最後の砦」。欠測は"作るべきでないもの"なので、<code>of()</code> を呼ぶ前に除外する。ガードに頼ると例外で流れが止まる。</p>
+</details>
+<details>
+<summary>Q3. CSVの <code>cityCode</code> から <code>ObservationPoint</code> をどう手に入れる？ 前に作った何が役立つ？</summary>
+<p><code>observationPointRepository.findByExternalId(cityCode)</code>。無ければ新規作成して保存。前に書いた派生クエリメソッドがここで活きる。</p>
+</details>
+<details>
+<summary>Q4. Service に <code>@Transactional</code> を付ける理由は？</summary>
+<p>複数行の保存を1つのトランザクション（全部成功 or 全部失敗）に束ねるため。Repository単体のトランザクションをService側でまとめるケース。</p>
+</details>
+<details>
+<summary>Q5. 重複保存を防ぐ二重の仕組みは？</summary>
+<p>① アプリ側：<code>existsByObservationPointAndMeasuredAt</code> で保存前チェック ② DB側：複合UNIQUE制約。両方で守る。</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="next">11. 次にやること</h2>
+
+<div class="user-task">
+🖊️ <strong>あなたの作業（この順で・各ステップでレビュー依頼を）</strong>
+<ol>
+  <li>Step 0：実際にAPIを叩いてCSVの形を観察（DTO設計の前提）</li>
+  <li>DTO（record）を作る</li>
+  <li>Client（RestClientでCSV取得）を書く</li>
+  <li>CSVパース（Commons CSV）を書く</li>
+  <li>DTO→Entity変換（欠測スキップ）を書く</li>
+  <li>Service で束ねる（地点解決・重複チェック・保存）</li>
+  <li><code>show-sql</code> のログで <code>INSERT</code> が出るのを確認、psqlで件数確認</li>
+</ol>
+</div>
+
+<div class="tip">
+🟣 一気に全部作らず、<strong>Step 0 → DTO → Client まででいったん動作確認</strong>（CSVが取れてDTOに入るか）するのがおすすめ。詰まったら各ステップで「ヒント」を求めてください。完成形を一度に出すのではなく、段階的に。<br>
+🟣 <strong>このあと（Phase 2）</strong>：この <code>ingest()</code> を定期実行（スケジューラ）し、しきい値超過でDiscord通知。今作る <code>Service</code> がそのまま土台になります。
+</div>
+
+<hr style="margin: 3rem 0; border: none; border-top: 1px dashed #cbd5e1;">
+<p style="text-align:center; color:#6b7280; font-size:0.9em;">外部API連携ガイド ／ 花粉通知アプリ ／ 作成 2026-06-03</p>
+
+</body>
+</html>

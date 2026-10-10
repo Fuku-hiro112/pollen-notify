@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>派生クエリ：メソッド名がそのままSQLになる仕組み | 花粉通知アプリ</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+         max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.75; color: #1f2937; background: #fafafa; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.5rem; font-size: 1.7rem; }
+  h2 { border-left: 5px solid #2563eb; padding-left: 0.6rem; margin-top: 2.6rem; font-size: 1.3rem; }
+  h3 { margin-top: 1.6rem; font-size: 1.06rem; color: #374151; }
+  .term { border-bottom: 1px dotted #2563eb; cursor: help; }
+  .concept { background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .implementation { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .danger { background: #fee2e2; border-left: 4px solid #ef4444; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .tip { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .key { background: #fffbeb; border-left: 4px solid #eab308; padding: 1rem 1.2rem; margin: 1.2rem 0; border-radius: 4px; font-size: 1.02rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+  th, td { border: 1px solid #d1d5db; padding: 0.5rem 0.8rem; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  code { background: #eef2f7; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: "Consolas","Menlo",monospace; }
+  pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .toc { background: #f9fafb; border: 1px solid #e5e7eb; padding: 1rem 1.5rem; border-radius: 6px; }
+  .toc ol { margin: 0.3rem 0; }
+  .toc a { color: #2563eb; text-decoration: none; }
+  details { background: #f9fafb; padding: 0.8rem 1rem; border-radius: 4px; margin: 0.5rem 0; border: 1px solid #e5e7eb; }
+  summary { cursor: pointer; font-weight: bold; }
+  .ref-link { font-size: 0.88rem; color: #6b7280; margin-top: 0.6rem; }
+  .ref-link a { color: #2563eb; }
+  .diagram { margin: 1.5rem 0; text-align: center; }
+  .tok-subject { background:#dbeafe; color:#1e40af; padding:0.05rem 0.35rem; border-radius:3px; font-weight:bold; }
+  .tok-by { background:#e5e7eb; color:#374151; padding:0.05rem 0.35rem; border-radius:3px; }
+  .tok-prop { background:#dcfce7; color:#166534; padding:0.05rem 0.35rem; border-radius:3px; font-weight:bold; }
+  .tok-op { background:#fee2e2; color:#b91c1c; padding:0.05rem 0.35rem; border-radius:3px; }
+  .tok-conn { background:#fef9c3; color:#854d0e; padding:0.05rem 0.35rem; border-radius:3px; }
+</style>
+</head>
+<body>
+
+<h1>🧬 派生クエリ：メソッド名がそのままSQLになる仕組み</h1>
+<p style="color:#6b7280;">花粉通知アプリ ／ 2026-06-03 ／ Phase 1 ／ Spring Data JPA の核心</p>
+
+<div class="key">
+🔑 <strong>この資料の核心（一文で）</strong><br>
+Spring Data JPA には「<code>findByExternalId</code> という<strong>既製の関数</strong>」は<strong>存在しない</strong>。あなたが書いた<strong>メソッド名という文字列を、Springが起動時に解析し、その場でクエリを組み立てる</strong>。つまり <strong>メソッド名は「呼び出す関数の名前」ではなく「クエリの設計図（DSL）」</strong>である。
+</div>
+
+<div class="concept">
+🟢 これがなぜ革新的か：普通のプログラミングでは「実装を書く」。だが派生クエリでは <strong>「何が欲しいか（意図）」を名前で宣言するだけで、実装（SQL）は自動で導出される</strong>。命令型ではなく<strong>宣言型</strong>。SQLの定型作業を人間から機械へ移した発明。
+</div>
+
+<div class="toc">
+<strong>📑 目次</strong>
+<ol>
+  <li><a href="#misconception">よくある誤解 → 正しい理解</a></li>
+  <li><a href="#anatomy">メソッド名の解剖（主部 + 述部）</a></li>
+  <li><a href="#subject">主部キーワード（操作と戻り値を決める）</a></li>
+  <li><a href="#predicate">述部キーワード（WHERE条件を決める）</a></li>
+  <li><a href="#walkthrough">本プロジェクトの2例を完全分解</a></li>
+  <li><a href="#return">戻り値の型のルール</a></li>
+  <li><a href="#traversal">プロパティの掘り下げ（関連のたどり方）</a></li>
+  <li><a href="#howparse">Springはどう解析しているか（PartTree）</a></li>
+  <li><a href="#limit">派生クエリの限界と @Query への切り替え</a></li>
+  <li><a href="#check">理解度チェック</a></li>
+  <li><a href="#next">次にやること</a></li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="misconception">1. よくある誤解 → 正しい理解</h2>
+
+<table>
+<tr><th></th><th>❌ よくある誤解</th><th>✅ 正しい理解</th></tr>
+<tr><td>findBy とは</td><td>「findBy用の関数」が用意されていて、それが割り当てられる</td><td><strong>関数は無い</strong>。<code>findBy</code> は「SELECTして返せ」という<strong>指示キーワード</strong></td></tr>
+<tr><td>メソッド名とは</td><td>呼び出す関数の名前</td><td>クエリの<strong>設計図（文字列で書いたDSL）</strong></td></tr>
+<tr><td>誰が実装を持つ</td><td>JpaRepositoryのどこかにある</td><td>誰も持たない。<strong>名前から起動時に生成</strong>される</td></tr>
+<tr><td>気をつけること</td><td>（なんとなく命名規約）</td><td>名前が仕様そのもの。<strong>1文字ズレれば違うクエリ／起動失敗</strong></td></tr>
+</table>
+
+<div class="warning">
+🟡 <code>save()</code> や <code>findById()</code> は事情が違う：これらは <code>SimpleJpaRepository</code> という<strong>本物の既製実装</strong>がある（＝あなたの最初の認識どおり）。<strong>派生クエリ（<code>findByXxx</code>）だけが「名前から生成」</strong>。この2種類を区別するのが理解の鍵。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="anatomy">2. メソッド名の解剖（主部 + 述部）</h2>
+
+<p>派生クエリのメソッド名は、英文のように <strong>主部（Subject）</strong> と <strong>述部（Predicate）</strong> に分かれます。境界は <code>By</code>。</p>
+
+<div class="diagram">
+<svg width="720" height="150" viewBox="0 0 720 150" xmlns="http://www.w3.org/2000/svg" font-family="monospace" font-size="14">
+  <text x="20" y="40" font-family="sans-serif" font-size="13" fill="#374151">existsByObservationPointAndMeasuredAt</text>
+
+  <rect x="18" y="55" width="58" height="26" rx="4" fill="#dbeafe" stroke="#2563eb"/>
+  <text x="47" y="73" text-anchor="middle" fill="#1e40af">exists</text>
+  <rect x="76" y="55" width="26" height="26" rx="4" fill="#e5e7eb" stroke="#9ca3af"/>
+  <text x="89" y="73" text-anchor="middle" fill="#374151">By</text>
+  <rect x="102" y="55" width="148" height="26" rx="4" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="176" y="73" text-anchor="middle" fill="#166534">ObservationPoint</text>
+  <rect x="250" y="55" width="40" height="26" rx="4" fill="#fef9c3" stroke="#ca8a04"/>
+  <text x="270" y="73" text-anchor="middle" fill="#854d0e">And</text>
+  <rect x="290" y="55" width="100" height="26" rx="4" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="340" y="73" text-anchor="middle" fill="#166534">MeasuredAt</text>
+
+  <text x="47" y="100" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#1e40af">主部:操作</text>
+  <text x="89" y="100" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#6b7280">境界</text>
+  <text x="176" y="100" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#166534">プロパティ</text>
+  <text x="270" y="100" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#854d0e">連結</text>
+  <text x="340" y="100" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#166534">プロパティ</text>
+
+  <text x="47" y="125" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">何を返すか</text>
+  <text x="270" y="125" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#9ca3af">────── WHERE条件 ──────</text>
+</svg>
+</div>
+
+<ul>
+<li><span class="tok-subject">主部</span>：<code>exists</code> / <code>find</code> / <code>count</code> など。<strong>操作の種類と戻り値の型</strong>を決める。</li>
+<li><span class="tok-by">By</span>：ここから条件が始まる、という区切り。</li>
+<li><span class="tok-prop">プロパティ</span>：Entityの<strong>フィールド名（camelCase）</strong>。WHEREの対象列になる。</li>
+<li><span class="tok-op">演算子</span>（任意）：<code>LessThan</code> <code>Like</code> など。省略時は <code>=</code>。</li>
+<li><span class="tok-conn">連結</span>：<code>And</code> / <code>Or</code>。</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="subject">3. 主部キーワード（操作と戻り値を決める）</h2>
+
+<table>
+<tr><th>主部</th><th>意味</th><th>典型的な戻り値</th></tr>
+<tr><td><code>findBy</code> / <code>getBy</code> / <code>readBy</code> / <code>queryBy</code> / <code>searchBy</code></td><td>SELECTして取得（全部同義）</td><td><code>T</code> / <code>Optional&lt;T&gt;</code> / <code>List&lt;T&gt;</code></td></tr>
+<tr><td><code>existsBy</code></td><td>条件に合う行が存在するか</td><td><code>boolean</code></td></tr>
+<tr><td><code>countBy</code></td><td>条件に合う件数</td><td><code>long</code></td></tr>
+<tr><td><code>deleteBy</code> / <code>removeBy</code></td><td>条件に合う行を削除</td><td><code>void</code> / <code>long</code>（削除件数）</td></tr>
+</table>
+
+<h3>主部の「修飾子」（任意）</h3>
+<table>
+<tr><th>修飾子</th><th>意味</th><th>例</th></tr>
+<tr><td><code>First</code> / <code>Top</code> / <code>TopN</code></td><td>先頭1件 / N件に制限</td><td><code>findTop10By...</code> <code>findFirstBy...</code></td></tr>
+<tr><td><code>Distinct</code></td><td>重複排除</td><td><code>findDistinctBy...</code></td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="predicate">4. 述部キーワード（WHERE条件を決める）</h2>
+
+<p>プロパティ名のうしろに演算子を続けると、<code>=</code> 以外の条件になります（演算子省略時は <code>=</code>）。</p>
+
+<table>
+<tr><th>キーワード</th><th>生成される条件</th><th>例</th></tr>
+<tr><td>（省略）/ <code>Is</code> / <code>Equals</code></td><td><code>= ?</code></td><td><code>findByExternalId</code></td></tr>
+<tr><td><code>LessThan</code> / <code>GreaterThan</code></td><td><code>&lt; ?</code> / <code>&gt; ?</code></td><td><code>findByPollenCountGreaterThan</code></td></tr>
+<tr><td><code>LessThanEqual</code> / <code>GreaterThanEqual</code></td><td><code>&lt;= ?</code> / <code>&gt;= ?</code></td><td>—</td></tr>
+<tr><td><code>Between</code></td><td><code>BETWEEN ? AND ?</code></td><td><code>findByMeasuredAtBetween</code></td></tr>
+<tr><td><code>After</code> / <code>Before</code></td><td>日時の <code>&gt; ?</code> / <code>&lt; ?</code></td><td><code>findByMeasuredAtAfter</code></td></tr>
+<tr><td><code>Like</code> / <code>Containing</code> / <code>StartingWith</code> / <code>EndingWith</code></td><td><code>LIKE</code> 各種</td><td><code>findByNameContaining</code></td></tr>
+<tr><td><code>In</code> / <code>NotIn</code></td><td><code>IN (...)</code></td><td><code>findByExternalIdIn</code></td></tr>
+<tr><td><code>IsNull</code> / <code>IsNotNull</code></td><td><code>IS NULL</code> / <code>IS NOT NULL</code></td><td><code>findByLatitudeIsNull</code></td></tr>
+<tr><td><code>True</code> / <code>False</code></td><td>boolean列の真偽</td><td><code>findByActiveTrue</code></td></tr>
+<tr><td><code>Not</code></td><td><code>&lt;&gt; ?</code></td><td><code>findByNameNot</code></td></tr>
+<tr><td><code>IgnoreCase</code></td><td>大文字小文字を無視</td><td><code>findByNameIgnoreCase</code></td></tr>
+<tr><td><code>And</code> / <code>Or</code></td><td>条件の連結</td><td><code>findByAAndBOrC</code></td></tr>
+<tr><td><code>OrderBy...Asc</code> / <code>Desc</code></td><td>並べ替え</td><td><code>findByXxxOrderByMeasuredAtDesc</code></td></tr>
+</table>
+
+<div class="tip">
+🟣 引数の数＝条件が要求する <code>?</code> の数。<code>Between</code> は2個、<code>IsNull</code> は0個。<strong>引数の順番＝条件に出てくる順番</strong>。ズレると意味が変わる。
+</div>
+
+<div class="ref-link">📚 公式キーワード一覧：<a href="https://docs.spring.io/spring-data/jpa/reference/repositories/query-keywords-reference.html" target="_blank">Repository query keywords</a></div>
+
+<!-- ============================================================ -->
+<h2 id="walkthrough">5. 本プロジェクトの2例を完全分解</h2>
+
+<h3>例1：<code>findByExternalId(String externalId)</code></h3>
+<pre><code>find        → SELECT して取得（戻り値は Optional&lt;ObservationPoint&gt; と宣言）
+By          → ここから条件
+ExternalId  → Entityのフィールド externalId（DB列 external_id）を = で照合</code></pre>
+<pre><code>↓ Spring が起動時に生成（JPQL）
+SELECT o FROM ObservationPoint o WHERE o.externalId = :externalId
+↓ Hibernate が変換（実SQL / PostgreSQL）
+SELECT ... FROM observation_points WHERE external_id = ?</code></pre>
+
+<h3>例2：<code>existsByObservationPointAndMeasuredAt(ObservationPoint p, Instant at)</code></h3>
+<pre><code>exists            → 存在するか（戻り値 boolean）
+By                → 条件開始
+ObservationPoint  → フィールド observationPoint（FK observation_point_id）を = 照合
+And               → かつ
+MeasuredAt        → フィールド measuredAt（列 measured_at）を = 照合</code></pre>
+<pre><code>↓ JPQL
+SELECT count(m)&gt;0 FROM PollenMeasurement m
+WHERE m.observationPoint = :p AND m.measuredAt = :at
+↓ 実SQL
+SELECT EXISTS(SELECT 1 FROM pollen_measurements
+              WHERE observation_point_id = ? AND measured_at = ?)</code></pre>
+
+<div class="concept">🟢 引数 <code>p</code>（ObservationPoint）を渡すと、Hibernateがその <code>id</code> を取り出して <code>observation_point_id = ?</code> に当てる。オブジェクトのままFK条件にできるのがJPAの便利な点。</div>
+
+<!-- ============================================================ -->
+<h2 id="return">6. 戻り値の型のルール</h2>
+
+<table>
+<tr><th>主部</th><th>使える戻り値の型</th><th>使い分け</th></tr>
+<tr><td><code>findBy</code>（1件想定）</td><td><code>Optional&lt;T&gt;</code></td><td>「無いかも」を型で表す。<strong>推奨</strong>。本プロジェクトの <code>findByExternalId</code> はこれ</td></tr>
+<tr><td><code>findBy</code>（1件想定）</td><td><code>T</code>（生の型）</td><td>無いと <code>null</code>。null安全でないので避けたい</td></tr>
+<tr><td><code>findBy</code>（複数）</td><td><code>List&lt;T&gt;</code></td><td>0件は空リスト。複数ヒット前提</td></tr>
+<tr><td><code>existsBy</code></td><td><code>boolean</code></td><td>存在チェック専用。重複防止に最適</td></tr>
+<tr><td><code>countBy</code></td><td><code>long</code></td><td>件数</td></tr>
+</table>
+
+<div class="danger">
+🔴 <strong>1件想定で <code>List</code>でなく<code>T</code>/<code>Optional</code>を使う場合、結果が2件以上あると例外</strong>（<code>IncorrectResultSizeDataAccessException</code>）。<code>findByExternalId</code> が <code>Optional</code> で安全なのは、<code>external_id</code> に <strong>UNIQUE制約</strong>があり「最大1件」が保証されているから。型の選択は<strong>DB制約と整合</strong>している必要がある。</div>
+
+<!-- ============================================================ -->
+<h2 id="traversal">7. プロパティの掘り下げ（関連のたどり方）</h2>
+
+<p>条件は、関連先のフィールドまで<strong>たどれます</strong>。例えば「<code>external_id</code> が一致する観測値」を測定値側から引きたい場合：</p>
+
+<pre><code>// PollenMeasurement から ObservationPoint.externalId をたどる
+List&lt;PollenMeasurement&gt; findByObservationPointExternalId(String externalId);
+//                              └────┬────────┘└───┬────┘
+//                          observationPoint  .externalId （関連を辿る）</code></pre>
+
+<div class="warning">
+🟡 たどり先が曖昧な場合（例：<code>observationPointExternalId</code> が <code>observationPoint.externalId</code> か <code>observationPointExternal.id</code> か紛らわしい時）、<strong>アンダースコアで明示</strong>できる：<code>findByObservationPoint_ExternalId</code>。普段は不要だが、解決エラーが出たら使う。</div>
+
+<!-- ============================================================ -->
+<h2 id="howparse">8. Springはどう解析しているか（PartTree）</h2>
+
+<ol>
+<li>起動時、<span class="term" data-tooltip="メソッド名を文法解析する内部コンポーネント">PartTree</span> がメソッド名を主部・述部に分解</li>
+<li>述部のトークン（<code>ObservationPoint</code>, <code>MeasuredAt</code>…）を、<strong>Entityのフィールド名と突き合わせ</strong>て解決</li>
+<li>解決できたらJPQLを組み立て、メタデータとして保持</li>
+<li>実行時：保持したJPQLに引数をバインドして実行 → Hibernateが実SQLへ</li>
+</ol>
+
+<div class="danger">
+🔴 ステップ2で<strong>フィールド名に解決できないと起動失敗</strong>：<br>
+<code>PropertyReferenceException: No property 'cityName' found for type 'ObservationPoint'</code><br>
+タイポ（<code>findByExternalIdd</code>）や存在しないフィールド（<code>findByCityName</code>）は<strong>アプリ起動の瞬間</strong>に発覚する。実行を待たない（<span class="term" data-tooltip="問題を早期に表面化させる設計">fail-fast</span>）。
+</div>
+
+<div class="ref-link">📚 さらに深く（プロキシ生成・SimpleJpaRepositoryへの委譲）：<a href="2026-06-01_SpringDataJPA内部の仕組み.html">Spring Data JPA 内部の仕組み</a></div>
+
+<!-- ============================================================ -->
+<h2 id="limit">9. 派生クエリの限界と @Query への切り替え</h2>
+
+<p>名前で書けるのは「単純〜中程度」まで。複雑になると名前が長大化し、むしろ読めなくなります。</p>
+
+<table>
+<tr><th>状況</th><th>手段</th></tr>
+<tr><td>単純な条件（=, And, 範囲, 並べ替え）</td><td>✅ 派生クエリ（メソッド名）</td></tr>
+<tr><td>名前が <code>findByAAndBAndCOrderByDDescAndEAsc...</code> と暴走</td><td>⚠️ <code>@Query</code> でJPQLを直接書く方が読みやすい</td></tr>
+<tr><td>集計・サブクエリ・JOIN FETCH・DB固有関数</td><td>✅ <code>@Query</code>（JPQL / nativeQuery）</td></tr>
+</table>
+
+<div class="implementation">
+🔵 <code>@Query</code> の例（Phase 3以降で登場）
+<pre><code>@Query("SELECT m FROM PollenMeasurement m " +
+       "WHERE m.observationPoint = :p ORDER BY m.measuredAt DESC")
+List&lt;PollenMeasurement&gt; findRecent(@Param("p") ObservationPoint p, Pageable pageable);</code></pre>
+</div>
+
+<div class="tip">🟣 Phase 1は派生クエリで十分。「名前が長すぎてつらい」と感じたら <code>@Query</code> への切り替えサインだと覚えておく。</div>
+
+<!-- ============================================================ -->
+<h2 id="check">10. 理解度チェック</h2>
+
+<details>
+<summary>Q1. 「findBy用の関数が割り当てられる」という説明はどこが間違い？</summary>
+<p>既製の関数は存在しない。<code>findBy</code> は「SELECTして返せ」という指示キーワードで、メソッド名<strong>全体</strong>を解析してクエリが<strong>生成</strong>される。名前は関数名ではなくクエリの設計図。</p>
+</details>
+<details>
+<summary>Q2. <code>save()</code> と <code>findByExternalId()</code> で、実装の出どころはどう違う？</summary>
+<p><code>save()</code>＝<code>SimpleJpaRepository</code> という既製実装。<code>findByExternalId()</code>＝メソッド名から起動時に生成。前者は「ある関数」、後者は「名前から作られる」。</p>
+</details>
+<details>
+<summary>Q3. <code>findByExternalId</code> の戻り値を <code>Optional</code> にできるのはなぜ？ もし <code>name</code> で同じことをしたら？</summary>
+<p><code>external_id</code> はUNIQUEなので最大1件＝Optionalで安全。<code>name</code> はUNIQUEでないため複数ヒットしうる→ <code>Optional</code>/<code>T</code> だと例外。<code>List</code> にすべき。型はDB制約と整合させる。</p>
+</details>
+<details>
+<summary>Q4. <code>findByPollenCountGreaterThanAndMeasuredAtAfter</code> は引数が何個必要？</summary>
+<p>2個。<code>GreaterThan</code>(1個) + <code>After</code>(1個)。順番は名前に出る順＝(count, instant)。</p>
+</details>
+<details>
+<summary>Q5. メソッド名にタイポした場合、いつ・どんなエラーで気づく？</summary>
+<p>アプリ<strong>起動時</strong>に <code>PropertyReferenceException</code>。フィールド名に解決できないため。実行を待たず即発覚（fail-fast）。</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="next">11. 次にやること</h2>
+
+<div class="concept">
+🟢 この仕組みが腑に落ちたら、外部API連携（<a href="../guides/2026-06-03_外部API連携ガイド.html">ガイド</a>）で <code>findByExternalId</code>（地点解決）と <code>existsByObservationPointAndMeasuredAt</code>（重複防止）が実際に動くのを確認できます。<code>show-sql: true</code> のログで、あなたのメソッド名がどんなSQLになったかを<strong>自分の目で観察</strong>すると、この資料の内容が一気に実感に変わります。
+</div>
+
+<div class="tip">
+🟣 <strong>Phase 4への伏線</strong>：派生クエリは「永続化の関心事をRepositoryに閉じ込める」DDDの考え方と相性が良い。ドメイン層は「<code>findByExternalId</code> という意図」だけ知り、SQLという実装詳細を一切知らずに済む。これがリポジトリパターンの理想形。
+</div>
+
+<hr style="margin: 3rem 0; border: none; border-top: 1px dashed #cbd5e1;">
+<p style="text-align:center; color:#6b7280; font-size:0.9em;">派生クエリの仕組み ／ 花粉通知アプリ ／ 作成 2026-06-03</p>
+
+</body>
+</html>

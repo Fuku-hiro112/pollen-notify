@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>レイヤー構成とパッケージの役割 — entity / repository / client / dto / service</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+         max-width: 900px; margin: 0 auto; padding: 2rem; line-height: 1.7; color: #222; background:#fff; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.5rem; font-size:1.7rem; }
+  h2 { border-left: 5px solid #2563eb; padding-left: 0.6rem; margin-top: 2.8rem; font-size:1.3rem; }
+  h3 { margin-top: 1.8rem; font-size:1.12rem; }
+  .subtitle{ color:#6b7280; font-size:0.95rem; }
+  a { color:#2563eb; }
+  .term { border-bottom: 1px dotted #2563eb; cursor: help; position:relative; font-weight:600; color:#1d4ed8; }
+  .term:hover::after{ content:attr(data-tooltip); position:absolute; left:0; top:1.7em; z-index:10;
+        background:#1f2328; color:#fff; padding:0.5rem 0.7rem; border-radius:6px; width:max-content; max-width:300px;
+        font-size:0.8rem; font-weight:400; line-height:1.5; box-shadow:0 4px 12px rgba(0,0,0,.2); white-space:normal; }
+  .concept { background:#ecfdf5; border-left:4px solid #10b981; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .implementation { background:#eff6ff; border-left:4px solid #3b82f6; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .warning { background:#fef3c7; border-left:4px solid #f59e0b; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .danger { background:#fee2e2; border-left:4px solid #ef4444; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .tip { background:#f5f3ff; border-left:4px solid #8b5cf6; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .user-task { background:#fffbeb; border:1px dashed #d97706; padding:0.8rem 1rem; margin:1rem 0; border-radius:6px; }
+  .box-label{ font-weight:700; display:block; margin-bottom:0.3rem; }
+  table { border-collapse:collapse; width:100%; margin:1rem 0; font-size:0.92rem; }
+  th, td { border:1px solid #d1d5db; padding:0.5rem 0.8rem; text-align:left; vertical-align:top; }
+  th { background:#f3f4f6; }
+  code { background:#f3f4f6; padding:0.1rem 0.4rem; border-radius:3px; font-size:0.9em; font-family:Consolas,Menlo,monospace; }
+  pre { background:#1e293b; color:#f1f5f9; padding:1rem; border-radius:6px; overflow-x:auto; font-size:0.85rem; }
+  pre code { background:transparent; color:inherit; padding:0; }
+  .toc { background:#f9fafb; border:1px solid #e5e7eb; padding:1rem 1.5rem; border-radius:6px; }
+  details { background:#f9fafb; padding:0.8rem 1rem; border-radius:4px; margin:0.5rem 0; }
+  summary { cursor:pointer; font-weight:bold; color:#2563eb; }
+  .diagram { margin:1.5rem 0; text-align:center; overflow-x:auto; }
+  .layer-tag{ display:inline-block; color:#fff; font-size:0.78rem; font-weight:700; padding:0.1rem 0.55rem; border-radius:999px; margin-right:0.4rem; }
+  .t-client{background:#0891b2;} .t-dto{background:#7c3aed;} .t-service{background:#ea580c;}
+  .t-entity{background:#16a34a;} .t-repo{background:#2563eb;}
+  .doclink{ font-size:0.85rem; color:#6b7280; margin-top:0.4rem; }
+</style>
+</head>
+<body>
+
+<h1>レイヤー構成とパッケージの役割</h1>
+<p class="subtitle">2026-06-14 ／ <code>entity / repository / client / dto / service</code> とは何か。あなたが Phase 1 で書いた実コードを題材に理解する。</p>
+
+<div class="concept">
+<span class="box-label">🟢 この資料のゴール</span>
+「クラスをどのフォルダ（パッケージ）に置くか」には<strong>役割（責務）ごとのルール</strong>があります。
+その5つの役割——client / dto / service / entity / repository——が「何をする係なのか」、そして
+「どう繋がって1つの処理になるのか」を、自分のコードで理解するのが目標です。
+</div>
+
+<nav class="toc">
+  <strong>目次</strong>
+  <ol>
+    <li><a href="#why">1. そもそも「レイヤー」とは？なぜ分けるのか</a></li>
+    <li><a href="#flow">2. 全体像 — データの流れ（図解）</a></li>
+    <li><a href="#client">3. client（外部との境界）</a></li>
+    <li><a href="#dto">4. dto（層をまたぐ入れ物）</a></li>
+    <li><a href="#service">5. service（業務手順の司令塔）</a></li>
+    <li><a href="#entity">6. entity（DBの1行に対応）</a></li>
+    <li><a href="#repository">7. repository（DBアクセス係）</a></li>
+    <li><a href="#table">8. 責務の対比表</a></li>
+    <li><a href="#pitfall">9. 初学者がやりがちな混同</a></li>
+    <li><a href="#phase4">10. Phase 4 への伏線（DDD）</a></li>
+    <li><a href="#check">11. 理解度チェック</a></li>
+    <li><a href="#next">12. 次にやること</a></li>
+  </ol>
+</nav>
+
+<h2 id="why">1. そもそも「レイヤー」とは？なぜ分けるのか</h2>
+<p>
+<span class="term" data-tooltip="役割ごとにコードを層（レイヤー）に分けて配置する設計。プレゼン層・業務層・データ層など">レイヤードアーキテクチャ</span>
+とは、プログラムを「役割の違う層」に分ける考え方です。料理屋に例えると：
+</p>
+<table>
+  <tr><th>役割</th><th>料理屋での例え</th><th>このアプリ</th></tr>
+  <tr><td>外部から材料を取る</td><td>市場へ買い出しに行く人</td><td><span class="layer-tag t-client">client</span></td></tr>
+  <tr><td>運ぶ箱</td><td>食材を入れるトレー</td><td><span class="layer-tag t-dto">dto</span></td></tr>
+  <tr><td>調理手順を仕切る</td><td>料理長</td><td><span class="layer-tag t-service">service</span></td></tr>
+  <tr><td>保存する形</td><td>冷蔵庫の保存容器</td><td><span class="layer-tag t-entity">entity</span></td></tr>
+  <tr><td>冷蔵庫に出し入れ</td><td>倉庫係</td><td><span class="layer-tag t-repo">repository</span></td></tr>
+</table>
+<div class="warning">
+<span class="box-label">🟡 なぜ分けるのか（混ぜると何が困る？）</span>
+全部を1つのクラスに書くと、「APIの仕様変更」「DBの設計変更」「業務ルールの変更」が
+<strong>すべて同じ場所に絡まり</strong>、1か所直すと別の機能が壊れます。
+役割で分ければ「変更したい理由ごとに、触る場所が1か所で済む」——これが分割の最大の利点です。
+</div>
+
+<h2 id="flow">2. 全体像 — データの流れ（図解）</h2>
+<p>Phase 1 の「花粉データを取得してDBに保存する」処理は、各レイヤーをバケツリレーのように通ります。</p>
+<div class="diagram">
+<svg width="860" height="220" viewBox="0 0 860 220" role="img" aria-label="レイヤー間のデータの流れ">
+  <defs><marker id="ar" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#475569"/></marker></defs>
+  <!-- external -->
+  <rect x="10" y="80" width="110" height="50" rx="8" fill="#f1f5f9" stroke="#94a3b8"/>
+  <text x="65" y="100" text-anchor="middle" font-size="11">ウェザーニューズ</text>
+  <text x="65" y="116" text-anchor="middle" font-size="11">花粉API</text>
+  <!-- client -->
+  <rect x="160" y="80" width="100" height="50" rx="8" fill="#cffafe" stroke="#0891b2"/>
+  <text x="210" y="100" text-anchor="middle" font-size="12" font-weight="700" fill="#0e7490">client</text>
+  <text x="210" y="116" text-anchor="middle" font-size="9.5">CSV文字列</text>
+  <!-- dto -->
+  <rect x="300" y="80" width="100" height="50" rx="8" fill="#ede9fe" stroke="#7c3aed"/>
+  <text x="350" y="100" text-anchor="middle" font-size="12" font-weight="700" fill="#6d28d9">dto</text>
+  <text x="350" y="116" text-anchor="middle" font-size="9.5">PollenCsvRow</text>
+  <!-- service -->
+  <rect x="440" y="80" width="100" height="50" rx="8" fill="#ffedd5" stroke="#ea580c"/>
+  <text x="490" y="100" text-anchor="middle" font-size="12" font-weight="700" fill="#c2410c">service</text>
+  <text x="490" y="116" text-anchor="middle" font-size="9.5">手順を仕切る</text>
+  <!-- entity -->
+  <rect x="580" y="80" width="100" height="50" rx="8" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="630" y="100" text-anchor="middle" font-size="12" font-weight="700" fill="#15803d">entity</text>
+  <text x="630" y="116" text-anchor="middle" font-size="9.5">PollenMeasurement</text>
+  <!-- repository -->
+  <rect x="720" y="80" width="100" height="50" rx="8" fill="#dbeafe" stroke="#2563eb"/>
+  <text x="770" y="100" text-anchor="middle" font-size="12" font-weight="700" fill="#1d4ed8">repository</text>
+  <text x="770" y="116" text-anchor="middle" font-size="9.5">保存</text>
+  <!-- DB -->
+  <ellipse cx="770" cy="185" rx="55" ry="16" fill="#e0e7ff" stroke="#4338ca"/>
+  <text x="770" y="190" text-anchor="middle" font-size="11" fill="#3730a3">PostgreSQL</text>
+  <!-- arrows -->
+  <g stroke="#475569" stroke-width="2" fill="none">
+    <line x1="120" y1="105" x2="158" y2="105" marker-end="url(#ar)"/>
+    <line x1="260" y1="105" x2="298" y2="105" marker-end="url(#ar)"/>
+    <line x1="400" y1="105" x2="438" y2="105" marker-end="url(#ar)"/>
+    <line x1="540" y1="105" x2="578" y2="105" marker-end="url(#ar)"/>
+    <line x1="680" y1="105" x2="718" y2="105" marker-end="url(#ar)"/>
+    <line x1="770" y1="130" x2="770" y2="167" marker-end="url(#ar)"/>
+  </g>
+  <text x="280" y="72" text-anchor="middle" font-size="9" fill="#64748b">パースして詰める</text>
+  <text x="490" y="150" text-anchor="middle" font-size="9" fill="#64748b">dto→entity変換</text>
+</svg>
+</div>
+<p style="font-size:0.9rem;color:#475569;">
+左から右へ：<strong>API → client が取得 → dto に詰める → service が変換を仕切る → entity の形にする → repository が DB へ保存</strong>。
+各箱が「自分の担当だけ」やり、隣に渡すのがポイントです。
+</p>
+
+<h2 id="client">3. <span class="layer-tag t-client">client</span> — 外部との境界</h2>
+<div class="concept">
+<span class="box-label">🟢 役割</span>
+<strong>外部システム（他社のAPIなど）とやり取りする係</strong>。「外の世界」と「自分のアプリ」の境界に立ち、
+通信の詳細（URL・HTTP・レスポンス形式）をここに閉じ込めます。
+</div>
+<p>あなたの <code>PollenApiClient</code>：</p>
+<pre><code>public String fetchRawCsv(String cityCode) {
+    return restClient.get()
+            .uri(b -> b.queryParam("citycode", cityCode).build())
+            .retrieve()
+            .body(String.class);   // CSVをそのまま文字列で受ける
+}</code></pre>
+<p>
+<span class="term" data-tooltip="Spring 6.1+ の同期HTTPクライアント。外部APIを呼ぶための道具">RestClient</span>
+を使い、APIから CSV を「文字列のまま」取ってくるのが client の仕事。<strong>パースも保存もしません</strong>
+（それは別レイヤーの担当）。「取ってくるだけ」に徹しているのが正しい姿です。
+</p>
+<div class="tip"><span class="box-label">🟣 学習Tips</span>
+client を分けておくと、将来APIが別会社のものに変わっても「client だけ差し替えれば」他の層は無傷で済みます。</div>
+<p class="doclink">📚 <a href="https://docs.spring.io/spring-framework/reference/integration/rest-clients.html" target="_blank">Spring公式: RestClient</a></p>
+
+<h2 id="dto">4. <span class="layer-tag t-dto">dto</span> — 層をまたぐ入れ物</h2>
+<div class="concept">
+<span class="box-label">🟢 役割</span>
+<span class="term" data-tooltip="Data Transfer Object。データを運ぶことだけが目的の、振る舞いを持たない単純な入れ物">DTO</span>
+＝「データを運ぶための箱」。ロジックを持たず、ただ値を保持して層から層へ受け渡します。
+</div>
+<p>あなたの <code>PollenCsvRow</code>：</p>
+<pre><code>public record PollenCsvRow(
+        String cityCode,
+        Instant date,
+        int pollen_count
+) {}</code></pre>
+<p>
+Java の <span class="term" data-tooltip="Java 16+ の機能。値を保持するだけの不変クラスを1行で定義できる">record</span>
+で書かれています。CSV 1行ぶんの生データを、client → service へ運ぶための箱です。
+</p>
+<div class="warning"><span class="box-label">🟡 なぜ entity と分けるのか？</span>
+「APIのCSV形式」と「DBのテーブル形式」は<strong>別物で、別々の理由で変わる</strong>からです。
+dto は「外から来たデータの形」、entity は「DBに保存する形」。混ぜると、API変更がDB設計に波及してしまいます。</div>
+
+<h2 id="service">5. <span class="layer-tag t-service">service</span> — 業務手順の司令塔</h2>
+<div class="concept">
+<span class="box-label">🟢 役割</span>
+<strong>「やりたいこと」の手順をまとめる司令塔</strong>。client・repository などの部品を呼び出して、
+1つの業務（例：取得→変換→保存）を組み立てます。<strong>業務ルール</strong>もここに置きます。
+</div>
+<p>あなたの <code>PollenIngestService</code>（現状は変換メソッドのみ）：</p>
+<pre><code>PollenMeasurement toEntity(PollenCsvRow row, ObservationPoint point) {
+    return PollenMeasurement.of(point, row.measuredAt(), row.pollenCount());
+}
+// 欠測(-9999)行は、ここを呼ぶ前にフィルタで除外する</code></pre>
+<p>
+ここでは <span class="layer-tag t-dto">dto</span>（<code>PollenCsvRow</code>）を
+<span class="layer-tag t-entity">entity</span>（<code>PollenMeasurement</code>）に<strong>変換</strong>しています。
+「欠測行を除外する」といった業務ルールも service の担当です。
+</p>
+<div class="user-task"><span class="box-label">🖊️ ここはあなたが育てる場所</span>
+Phase 1 の残り「取得→パース→保存を1本につなぐ」処理は、まさにこの service に書きます。
+<code>client.fetchRawCsv()</code> → <code>parse()</code> → <code>toEntity()</code> → <code>repository.save()</code> の流れを組み立てるのが次の課題です。</div>
+
+<h2 id="entity">6. <span class="layer-tag t-entity">entity</span> — DBの1行に対応</h2>
+<div class="concept">
+<span class="box-label">🟢 役割</span>
+<span class="term" data-tooltip="DBのテーブルの1行に対応するJavaオブジェクト。JPAが両者を自動で変換する">Entity</span>
+＝<strong>DBテーブルの1行に対応するクラス</strong>。
+<span class="term" data-tooltip="Object-Relational Mapping。JavaオブジェクトとリレーショナルDBの行を相互変換する技術">ORM</span>
+の仕組みで、Javaオブジェクトとテーブル行が自動で行き来します。
+</div>
+<p>あなたの <code>PollenMeasurement</code>（抜粋）：</p>
+<pre><code>@Entity
+@Table(name = "pollen_measurements", uniqueConstraints = ...)
+public class PollenMeasurement {
+    @Id @GeneratedValue(...) private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "observation_point_id")
+    private ObservationPoint observationPoint;
+
+    @Column(name = "measured_at") private Instant measuredAt;
+    @Column(name = "pollen_count") private int pollenCount;
+}</code></pre>
+<p>主なアノテーション（ホバーで説明）：</p>
+<ul>
+  <li><span class="term" data-tooltip="このクラスがDBテーブルに対応するEntityだとJPAに伝える">@Entity</span> … テーブル対応クラスの宣言</li>
+  <li><span class="term" data-tooltip="主キー（その行を一意に識別する列）を示す">@Id</span> … 主キー</li>
+  <li><span class="term" data-tooltip="多対一の関連。多数の観測値が1つの観測地点に属する">@ManyToOne</span> … 観測値（多）→観測地点（一）の関連</li>
+  <li><span class="term" data-tooltip="関連先を実際に使う時まで読み込まない遅延ロード。最初はSQLを発行しない">FetchType.LAZY</span> … 必要になるまで観測地点を読まない</li>
+  <li><span class="term" data-tooltip="Javaのフィールドをテーブルの列に対応づける">@Column</span> … 列への対応</li>
+</ul>
+<div class="tip"><span class="box-label">🟣 設計の芽</span>
+あなたの entity は <code>of(...)</code> という生成メソッドで「<code>count &lt; 0</code> なら例外」という
+ルールを持っています。これは「データに振る舞いを持たせる」DDDの第一歩です（→ <a href="#phase4">10章</a>）。</div>
+<p class="doclink">📚 <a href="https://jakarta.ee/specifications/persistence/" target="_blank">Jakarta Persistence (JPA) 仕様</a></p>
+
+<h2 id="repository">7. <span class="layer-tag t-repo">repository</span> — DBアクセス係</h2>
+<div class="concept">
+<span class="box-label">🟢 役割</span>
+<strong>DBへの保存・検索を担当する係</strong>。「SQLを書く場所」をここに集約します。
+<span class="term" data-tooltip="Spring Data JPA。インターフェースを定義するだけでDBアクセス実装を自動生成してくれる">Spring Data JPA</span>
+を使うと、<strong>インターフェースを書くだけで実装が自動生成</strong>されます。
+</div>
+<p>あなたの <code>PollenMeasurementRepository</code>：</p>
+<pre><code>public interface PollenMeasurementRepository
+        extends JpaRepository&lt;PollenMeasurement, Long&gt; {
+    boolean existsByObservationPointAndMeasuredAt(ObservationPoint point, Instant measuredAt);
+}</code></pre>
+<p>
+<span class="term" data-tooltip="Spring Data JPAの基本インターフェース。save/findById/findAll/delete などを最初から提供する">JpaRepository</span>
+を継承するだけで <code>save()</code> や <code>findById()</code> が使えます。さらに、
+<code>existsByObservationPointAndMeasuredAt</code> のように
+<span class="term" data-tooltip="メソッド名から自動でSQLを組み立てるSpring Data JPAの機能">メソッド名規約</span>
+で書くと、その名前から SQL を<strong>自動生成</strong>してくれます（重複保存チェックに使えます）。
+</p>
+<div class="warning"><span class="box-label">🟡 ポイント</span>
+「実装クラスが見当たらない！」と戸惑いますが、それで正常です。実体はSpringが起動時に裏で作っています。</div>
+<p class="doclink">📚 <a href="https://docs.spring.io/spring-data/jpa/reference/jpa/query-methods.html" target="_blank">Spring Data JPA: Query Methods</a></p>
+
+<h2 id="table">8. 責務の対比表</h2>
+<table>
+  <tr><th>レイヤー</th><th>やること</th><th>やらないこと</th></tr>
+  <tr><td><span class="layer-tag t-client">client</span></td><td>外部APIを呼んで生データを取る</td><td>パース・保存・業務判断</td></tr>
+  <tr><td><span class="layer-tag t-dto">dto</span></td><td>データを保持して運ぶ</td><td>ロジック・DB保存</td></tr>
+  <tr><td><span class="layer-tag t-service">service</span></td><td>手順の組み立て・変換・業務ルール</td><td>HTTP通信の詳細・SQLの詳細</td></tr>
+  <tr><td><span class="layer-tag t-entity">entity</span></td><td>DB1行を表す・自身の整合性を守る</td><td>API通信・他テーブルの一括検索</td></tr>
+  <tr><td><span class="layer-tag t-repo">repository</span></td><td>保存・検索（DBアクセス）</td><td>業務ルールの判断</td></tr>
+</table>
+
+<h2 id="pitfall">9. 初学者がやりがちな混同</h2>
+<div class="danger"><span class="box-label">🔴 やりがちな失敗</span>
+<ul style="margin:0.3rem 0;">
+  <li><strong>entity を外部にそのまま返す</strong>：API のレスポンスに entity を直接使うと、DB構造が外部に漏れ、変更に弱くなる。→ 返却用 dto を別途用意する（Phase 3）。</li>
+  <li><strong>service に SQL を直書き</strong>：DBアクセスは repository の担当。service が SQL を持つと役割が崩れる。</li>
+  <li><strong>client にパース処理を詰め込む</strong>：client は「取ってくるだけ」。パースは service 寄り（あなたの <code>parse</code> は client 内にあるが、Phase 4 で整理候補）。</li>
+  <li><strong>controller を作って全部そこに書く</strong>：1クラス肥大化の典型。レイヤーに散らす。</li>
+</ul>
+</div>
+
+<h2 id="phase4">10. 🟣 Phase 4 への伏線（DDD）</h2>
+<div class="tip">
+今のレイヤー構成は「データの流れで分ける」考え方です。Phase 4 の
+<span class="term" data-tooltip="Domain-Driven Design。業務領域の概念を中心に設計する手法">DDD</span>
+では、これを「業務の概念で分ける」方向へ進化させます：
+<ul style="margin:0.4rem 0;">
+  <li><strong>entity に振る舞いを増やす</strong>：今の <code>PollenMeasurement.of()</code> の検証がさらに育つ</li>
+  <li><span class="term" data-tooltip="値そのものに意味があり不変なオブジェクト。例：花粉飛散数・しきい値">値オブジェクト</span>：<code>pollenCount</code> をただの int でなく「花粉数」という型に</li>
+  <li><span class="term" data-tooltip="整合性を保つ単位でオブジェクトをまとめた境界">集約</span>：観測地点と観測値のまとまりを設計し直す</li>
+</ul>
+今は「動く貧弱なコード」を完成させるのが最優先。今日の構成理解が Phase 4 の土台になります。
+</div>
+
+<h2 id="check">11. 理解度チェック</h2>
+<details><summary>Q1. client の役割を一言で？</summary>
+<p>外部API（外の世界）とやり取りして生データを取ってくる係。パースや保存はしない。</p></details>
+<details><summary>Q2. dto と entity を分けるのはなぜ？</summary>
+<p>「APIのデータ形式」と「DBのテーブル形式」は別物で、別々の理由で変わるから。混ぜると変更が波及する。</p></details>
+<details><summary>Q3. repository の実装クラスはどこにある？</summary>
+<p>自分で書かない。Spring Data JPA がインターフェースから起動時に自動生成する。</p></details>
+<details><summary>Q4. 「取得→変換→保存」の手順を組み立てるのはどのレイヤー？</summary>
+<p>service。部品（client・repository）を呼び出して1つの業務にまとめる司令塔。</p></details>
+<details><summary>Q5. entity を API のレスポンスにそのまま使うと何が問題？</summary>
+<p>DBの内部構造が外部に漏れ、テーブル変更がAPIに直撃する。返却用のdtoを別に用意すべき。</p></details>
+
+<h2 id="next">12. 次にやること</h2>
+<div class="implementation">
+<span class="box-label">🔵 次の一歩（Phase 1 の残り）</span>
+このレイヤー理解を踏まえ、<strong>service で「取得→パース→保存」を1本につなぐ</strong>のが次の課題です：
+<ol style="margin:0.4rem 0;">
+  <li><code>PollenApiClient.fetchRawCsv()</code> で CSV取得</li>
+  <li><code>parse()</code> で <code>List&lt;PollenCsvRow&gt;</code> に変換</li>
+  <li>各 row を <code>toEntity()</code> で <code>PollenMeasurement</code> に変換（欠測は除外）</li>
+  <li><code>repository.save()</code> で保存（重複は <code>existsBy...</code> でスキップ）</li>
+  <li>実際に1回動かして、DBに行が入るのを確認 → <strong>Phase 1 クリア</strong></li>
+</ol>
+これは <span class="user-task" style="display:inline;padding:0.1rem 0.4rem;">🖊️ あなたが書く部分</span>です。詰まったらヒントを求めてください。
+</div>
+
+</body>
+</html>

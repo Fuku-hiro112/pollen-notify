@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 1 完成 — ingest を動かして DB保存を確認する</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { background-color:#FBFAF7; color:#1F2530; }
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+         max-width: 900px; margin: 0 auto; padding: 2rem; line-height: 1.7; font-size:16px; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.5rem; font-size:1.7rem; }
+  h2 { border-left: 5px solid #2563eb; padding-left: 0.6rem; margin-top: 2.8rem; font-size:1.3rem; }
+  h3 { margin-top: 1.6rem; font-size:1.1rem; }
+  .subtitle{ color:#5A6472; font-size:0.95rem; }
+  a { color:#1d4ed8; }
+  .term { border-bottom: 1px dotted #1d4ed8; cursor: help; position:relative; font-weight:600; color:#1d4ed8; }
+  .term:hover::after{ content:attr(data-tooltip); position:absolute; left:0; top:1.7em; z-index:10;
+        background:#1F2530; color:#F5F6F7; padding:0.5rem 0.7rem; border-radius:6px; width:max-content; max-width:300px;
+        font-size:0.8rem; font-weight:400; line-height:1.5; box-shadow:0 4px 12px rgba(0,0,0,.2); white-space:normal; }
+  .concept { background:#ecfdf5; border-left:4px solid #10b981; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .implementation { background:#eff6ff; border-left:4px solid #3b82f6; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .warning { background:#fef3c7; border-left:4px solid #f59e0b; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .danger { background:#fee2e2; border-left:4px solid #B23A2E; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .tip { background:#f5f3ff; border-left:4px solid #8b5cf6; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .user-task { background:#fffbeb; border:1px dashed #B45309; padding:0.8rem 1rem; margin:1rem 0; border-radius:6px; }
+  .box-label{ font-weight:700; display:block; margin-bottom:0.3rem; }
+  table { border-collapse:collapse; width:100%; margin:1rem 0; font-size:0.92rem; }
+  th, td { border:1px solid #D8DCD4; padding:0.5rem 0.8rem; text-align:left; vertical-align:top; }
+  th { background:#F1F2EE; }
+  code { background:#F1F2EE; padding:0.1rem 0.4rem; border-radius:3px; font-size:0.9em; font-family:Consolas,Menlo,monospace; }
+  pre { background:#1E2229; color:#E8EAED; padding:1rem; border-radius:6px; overflow-x:auto; font-size:0.85rem; }
+  pre code { background:transparent; color:inherit; padding:0; }
+  .blank { color:#F0A9A0; font-weight:700; }
+  .toc { background:#FFFFFF; border:1px solid #D8DCD4; padding:1rem 1.5rem; border-radius:6px; }
+  details { background:#FFFFFF; border:1px solid #D8DCD4; padding:0.8rem 1rem; border-radius:4px; margin:0.5rem 0; }
+  summary { cursor:pointer; font-weight:bold; color:#1d4ed8; }
+  .diagram { margin:1.5rem 0; text-align:center; overflow-x:auto; }
+  .doclink{ font-size:0.85rem; color:#5A6472; margin-top:0.4rem; }
+  .step-num{ display:inline-block; background:#2563eb; color:#fff; width:1.6em; height:1.6em; line-height:1.6em; text-align:center; border-radius:50%; font-size:0.9rem; margin-right:0.4rem; }
+
+  /* ── チェックリスト ── */
+  ul.checklist { list-style:none; padding-left:0; margin:0.4rem 0 1.2rem 0; }
+  ul.checklist li { padding:0.35rem 0; display:flex; align-items:flex-start; gap:0.6rem; }
+  ul.checklist li > input[type="checkbox"] { margin-top:0.35rem; width:1.15rem; height:1.15rem; flex-shrink:0; cursor:pointer; accent-color:#1F6B4A; }
+  ul.checklist li > input[type="checkbox"]:disabled { cursor:not-allowed; opacity:0.85; }
+  .sync-count { font-weight:700; color:#3D4654; white-space:nowrap; }
+  ul.checklist li > .check-body { flex:1; }
+  ul.checklist li.done > .check-body { color:#6B7280; text-decoration:line-through; text-decoration-thickness:1.5px; }
+  ul.checklist li.done > .check-body code { opacity:0.6; }
+  .progress-bar { background:#E3E5DF; border-radius:9999px; height:0.6rem; overflow:hidden; margin:0.4rem 0 0.6rem 0; }
+  .progress-fill { background:linear-gradient(to right,#34a97b,#1F6B4A); height:100%; transition:width .3s ease; }
+  .progress-label { font-size:0.85rem; color:#3D4654; margin-bottom:0.2rem; font-weight:600; }
+  .checklist-controls { margin:0.2rem 0 0.6rem 0; }
+  .checklist-controls button { background:#F1F2EE; border:1px solid #C9CEC4; border-radius:4px; padding:0.25rem 0.7rem; font-size:0.8rem; cursor:pointer; color:#3D4654; }
+  .checklist-controls button:hover { background:#E3E5DF; }
+  .dashboard { background:#FFFFFF; border:2px solid #1F6B4A; border-radius:8px; padding:1rem 1.4rem; margin:1.2rem 0 2rem 0; }
+  .dashboard h2 { margin-top:0.2rem; border-left:none; padding-left:0; font-size:1.15rem; color:#1F6B4A; }
+  .status { display:inline-block; font-size:0.72rem; font-weight:700; padding:0.1rem 0.5rem; border-radius:9999px; margin-left:0.4rem; vertical-align:middle; }
+  .st-done { background:#d6f5e6; color:#14563a; border:1px solid #6FD0A0; }
+  .st-todo { background:#fde8e6; color:#8A2B21; border:1px solid #E9A79F; }
+  .st-partial { background:#fdf0cf; color:#7A5407; border:1px solid #E3BE63; }
+  /* inline-block にすることで、チェック済みの取り消し線が補足メモまで伸びるのを防ぐ */
+  .memo { font-size:0.85rem; color:#5A6472; display:inline-block; width:100%; margin-top:0.15rem; text-decoration:none; }
+</style>
+</head>
+<body>
+
+<h1>Phase 1 完成 — ingest を動かして DB保存を確認する</h1>
+<p class="subtitle">2026-06-14 作成 ／ 2026-08-27 チェックリスト版に改訂。<code>PollenIngestService.ingest()</code> を実際に実行し、PostgreSQL に行が入るまで。これが終われば Phase 1 クリア。</p>
+
+<div class="concept">
+<span class="box-label">🟢 このガイドの使い方</span>
+これは<strong>読み物ではなく進捗管理表</strong>です。終わった項目はチェックを入れてください。状態はブラウザに保存されるので、
+何週間空けて開き直しても<strong>「どこまで終わったか」がひと目で分かります</strong>。
+（保存先はこのPCのブラウザ内。別PC・別ブラウザには引き継がれません）
+</div>
+
+<div class="dashboard">
+<h2 id="dashboard">📋 残作業ダッシュボード（Phase 1）</h2>
+<p class="subtitle" style="margin-top:0;">状態バッジは <strong>2026-08-27 に実際のコードを読んで判定</strong>したものです。</p>
+<p class="subtitle" style="margin-top:-0.5rem;">🔗 <strong>ここは各セクションのチェックに自動連動します</strong>（直接クリックはできません）。本文のチェックを埋めると、この一覧と進捗バーが自動で更新されます。</p>
+<ul class="checklist">
+  <li data-sync="seed"><strong>前提</strong>：<code>observation_points</code> に対象地点の行を用意する<span class="status st-todo">未</span>
+      <span class="memo">migration は <code>V1__init.sql</code> のみ。seed が無いので、いま実行すると必ず落ちます → <a href="#seed">§2</a></span></li>
+  <li data-sync="created#0"><strong>A</strong>：<code>createdAt</code> を <code>@PrePersist</code> で自動設定<span class="status st-done">実装済</span>
+      <span class="memo"><code>PollenMeasurement.java:43-46</code> に実装を確認（2026-08-27）→ <a href="#created">§3</a></span></li>
+  <li data-sync="tx#0"><strong>B</strong>：<code>ingest()</code> に <code>@Transactional</code> を付ける<span class="status st-done">実装済</span>
+      <span class="memo"><code>PollenIngestService.java</code> に付与済み → <a href="#tx">§4</a></span></li>
+  <li data-sync="tx#1,tx#2"><strong>B-2</strong>：その import を <code>org.springframework...Transactional</code> に直す<span class="status st-partial">要修正</span>
+      <span class="memo">現在は <code>jakarta.transaction.Transactional</code>。動くが Spring 標準ではない → <a href="#tx">§4</a></span></li>
+  <li data-sync="dup"><strong>C</strong>：重複保存を防ぐ <code>filter</code> を <code>ingest()</code> に追加<span class="status st-todo">未</span>
+      <span class="memo">Repository に <code>existsBy...</code> はあるが Service で未使用 → <a href="#dup">§5</a></span></li>
+  <li data-sync="runner"><strong>D</strong>：<code>IngestRunner</code>（CommandLineRunner）を作る<span class="status st-todo">未</span>
+      <span class="memo">クラス自体がまだ存在しない → <a href="#runner">§6</a></span></li>
+  <li data-sync="run"><strong>E</strong>：実行して DB に行が入るのを目視確認<span class="status st-todo">未</span>
+      <span class="memo">これが済めば <strong>Phase 1 クリア</strong> → <a href="#run">§7</a></span></li>
+</ul>
+</div>
+
+<nav class="toc">
+  <strong>目次</strong>
+  <ol>
+    <li><a href="#map">1. 残り作業の地図</a></li>
+    <li><a href="#seed">2. 前提：観測地点の seed を入れる</a></li>
+    <li><a href="#created">3. 課題A：createdAt を自動設定（@PrePersist）</a></li>
+    <li><a href="#tx">4. 課題B：@Transactional をどこに付けるか</a></li>
+    <li><a href="#dup">5. 課題C：重複保存を防ぐ（existsBy）</a></li>
+    <li><a href="#runner">6. 課題D：CommandLineRunner で起動時に実行</a></li>
+    <li><a href="#run">7. 課題E：動かす手順と確認方法</a></li>
+    <li><a href="#pitfall">8. やりがちな失敗</a></li>
+    <li><a href="#check">9. 理解度チェック</a></li>
+    <li><a href="#next">10. 次にやること（Phase 2 予告）</a></li>
+  </ol>
+</nav>
+
+<h2 id="map">1. 残り作業の地図</h2>
+<p>コンパイルは通る状態（<code>./gradlew compileJava</code> 成功）。ここから「実行して保存」までの残りはこれだけです。</p>
+<div class="diagram">
+<svg width="880" height="120" viewBox="0 0 880 120" role="img" aria-label="残り作業の流れ">
+  <defs><marker id="ar" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#475569"/></marker></defs>
+  <g font-size="11" text-anchor="middle">
+    <rect x="6"   y="40" width="130" height="46" rx="8" fill="#fee2e2" stroke="#B23A2E"/><text x="71"  y="60" fill="#1F2530">前提. 地点seed</text><text x="71" y="76" font-size="9" fill="#3D4654">未</text>
+    <rect x="160" y="40" width="130" height="46" rx="8" fill="#dcfce7" stroke="#1F6B4A"/><text x="225" y="60" fill="#1F2530">A. createdAt</text><text x="225" y="76" font-size="9" fill="#3D4654">実装済</text>
+    <rect x="314" y="40" width="130" height="46" rx="8" fill="#fef3c7" stroke="#B45309"/><text x="379" y="60" fill="#1F2530">B. @Transactional</text><text x="379" y="76" font-size="9" fill="#3D4654">import要修正</text>
+    <rect x="468" y="40" width="130" height="46" rx="8" fill="#fee2e2" stroke="#B23A2E"/><text x="533" y="60" fill="#1F2530">C. 重複防止</text><text x="533" y="76" font-size="9" fill="#3D4654">未</text>
+    <rect x="622" y="40" width="130" height="46" rx="8" fill="#fee2e2" stroke="#B23A2E"/><text x="687" y="60" fill="#1F2530">D. 起動トリガー</text><text x="687" y="76" font-size="9" fill="#3D4654">未</text>
+    <rect x="776" y="40" width="98"  height="46" rx="8" fill="#fee2e2" stroke="#B23A2E"/><text x="825" y="60" fill="#1F2530">E. DB目視</text><text x="825" y="76" font-size="9" fill="#3D4654">未</text>
+  </g>
+  <g stroke="#475569" stroke-width="2">
+    <line x1="136" y1="63" x2="158" y2="63" marker-end="url(#ar)"/>
+    <line x1="290" y1="63" x2="312" y2="63" marker-end="url(#ar)"/>
+    <line x1="444" y1="63" x2="466" y2="63" marker-end="url(#ar)"/>
+    <line x1="598" y1="63" x2="620" y2="63" marker-end="url(#ar)"/>
+    <line x1="752" y1="63" x2="774" y2="63" marker-end="url(#ar)"/>
+  </g>
+</svg>
+</div>
+
+<h2 id="seed">2. <span class="step-num">0</span>前提：観測地点の seed を入れる</h2>
+<div class="danger">
+<span class="box-label">🔴 ここを飛ばすと必ず落ちます</span>
+<code>ingest()</code> は最初に <code>pointRepo.findByExternalId(cityCode)</code> で観測地点を探し、
+見つからなければ <code>orElseThrow</code> で「観測地点が見つかりません」と例外を投げます。
+いまの migration は <code>V1__init.sql</code>（テーブルを作るだけ）なので、<strong>地点の行が1件も無い状態</strong>です。
+</div>
+<div class="concept">
+<span class="box-label">🟢 やさしく説明：seed（シード）とは</span>
+<span class="term" data-tooltip="アプリが動くために最初から入っていてほしい初期データのこと">seed データ</span>
+＝「<strong>アプリが動き出す前に、あらかじめ入れておく初期データ</strong>」。
+たとえるなら<strong>レジを開ける前に用意する釣り銭</strong>です。売上（観測値）は営業中に増えますが、
+釣り銭（観測地点マスタ）は開店前に入っていないと商売が始まりません。
+</div>
+<div class="user-task"><span class="box-label">🖊️ あなたが決める（設計判断）</span>
+入れ方は2通り。どちらを選ぶかは設計判断なので、理由を言葉にしてから選んでください。
+<table style="margin-top:0.5rem;">
+<tr><th>案</th><th>やり方</th><th>意味すること</th></tr>
+<tr><td>A案：Flyway seed</td><td><code>V2__seed_observation_points.sql</code> を追加</td><td>マスタデータも<span class="term" data-tooltip="DBの変更履歴をSQLファイルとしてGit管理し、順番に適用する仕組み">バージョン管理</span>下に置く。誰が動かしても同じ初期状態になる</td></tr>
+<tr><td>B案：手動INSERT</td><td>psql や DBクライアントで直接 INSERT</td><td>手軽だが、環境を作り直すたびに手作業。Git に残らない</td></tr>
+</table>
+学習目的なら A案 が素直です（Phase 2 以降も同じ地点を使い続けるため）。
+</div>
+<ul class="checklist">
+  <li>使う都市コードを <a href="../references/2026-06-03_ポールンロボAPI仕様メモ.html">ポールンロボAPI仕様メモ</a> で確定する</li>
+  <li>A案 / B案 のどちらにするか決めて、理由をひとこと書く</li>
+  <li>seed を作成する（A案なら <code>src/main/resources/db/migration/V2__seed_observation_points.sql</code>）</li>
+  <li><code>docker compose up -d</code> → アプリ起動で Flyway が V2 を適用したことをログで確認</li>
+  <li><code>SELECT * FROM observation_points;</code> で行が入っているのを目で見る</li>
+</ul>
+
+<h2 id="created">3. <span class="step-num">A</span>課題A：createdAt を自動設定（@PrePersist）</h2>
+<div class="concept" style="background:#d6f5e6;">
+<span class="box-label">✅ この課題は完了しています（2026-08-27 確認）</span>
+<code>PollenMeasurement.java:43-46</code> に <code>@PrePersist void onCreate()</code> が実装済みです。
+以下は「なぜそうしたか」を思い出すための記録として残しています。
+</div>
+
+<h3>そもそも何が問題だったのか（やさしく説明）</h3>
+<p>
+<code>createdAt</code> とは、花粉観測値が持つ項目のひとつで「<strong>このデータをいつ保存したか</strong>」という日時を入れる場所です。
+コードではこう書かれています：
+</p>
+<pre><code>@Column(nullable = false)
+private Instant createdAt;</code></pre>
+<p>この <code>nullable = false</code> がポイントです。</p>
+<ul>
+  <li><span class="term" data-tooltip="何も入っていない、空っぽの状態">null（ヌル）</span>＝「<strong>何も入っていない・空っぽ</strong>」という状態</li>
+  <li><code>nullable = false</code>＝「<strong>この項目は空っぽのままにしてはダメ</strong>」というデータベース側のルール</li>
+</ul>
+
+<div class="concept">
+<span class="box-label">🟢 例えるなら「必須入力の申込書」</span>
+役所の申込書で「氏名（必須）」を空欄のまま出すと、窓口で突き返されますよね。それと全く同じです。
+<table style="margin-top:0.6rem;">
+  <tr><th>申込書の世界</th><th>このアプリの世界</th></tr>
+  <tr><td>「氏名（必須）」の欄</td><td><code>nullable=false</code> の <code>createdAt</code></td></tr>
+  <tr><td>空欄のまま提出</td><td><code>createdAt</code> を空っぽのまま保存しようとする</td></tr>
+  <tr><td>窓口で突き返される</td><td>データベースがルール違反としてエラーを出す</td></tr>
+</table>
+</div>
+
+<div class="danger">
+<span class="box-label">🔴 直す前は、なぜ「落ちる」状態だったのか</span>
+データを作る <code>of()</code> メソッドは <code>observationPoint</code>・<code>measuredAt</code>・<code>pollenCount</code> は入れるのに、
+<code>createdAt</code> は入れません。そのまま保存すると：
+<ol style="margin:0.4rem 0;">
+  <li><code>of()</code> でオブジェクトを作る → <code>createdAt</code> は空っぽ</li>
+  <li>データベースに保存しようとする</li>
+  <li>DBが「createdAt は空欄禁止のはずだ！」と拒否</li>
+  <li>エラーで保存が失敗する（＝申込書を突き返された状態）</li>
+</ol>
+これが
+<span class="term" data-tooltip="DBの「この列は空っぽ禁止」というルール。NULL（空）を許さない制約">NOT NULL 制約</span>違反で
+<span class="term" data-tooltip="プログラム実行中に発生するエラー。処理がそこで止まる">例外</span>になる、の正体です。
+</div>
+
+<h3>どう直したか</h3>
+<p>
+「保存する直前に、<code>createdAt</code> へ自動で現在時刻を入れる」仕組みを足しました。JPA らしいのは
+<span class="term" data-tooltip="保存（INSERT）される直前に自動で1回だけ呼ばれるメソッドに付ける目印">@PrePersist</span> です。
+</p>
+<pre><code>@PrePersist
+void onCreate() {
+    this.createdAt = Instant.now();
+}</code></pre>
+<ul class="checklist">
+  <li data-done><code>@PrePersist</code> のメソッドを <code>PollenMeasurement</code> に追加した</li>
+  <li>「なぜ生成時ではなく<strong>保存時</strong>に入れるのか」を自分の言葉で説明できる</li>
+</ul>
+<div class="tip"><span class="box-label">🟣 別解（知識として）</span>
+Hibernate の <code>@CreationTimestamp</code> を使う手もあります。ただし「JPA標準ではなくHibernate独自」。
+今は標準の <code>@PrePersist</code> で十分です。</div>
+<p class="doclink">📚 <a href="https://jakarta.ee/specifications/persistence/" target="_blank">Jakarta Persistence: Lifecycle Callbacks</a></p>
+
+<h2 id="tx">4. <span class="step-num">B</span>課題B：@Transactional をどこに付けるか</h2>
+<div class="warning">
+<span class="box-label">🟡 現状（2026-08-27 確認）</span>
+<code>ingest()</code> に <code>@Transactional</code> は<strong>付いています</strong>。ただし import が
+<code>jakarta.transaction.Transactional</code> です。動きはしますが、Spring では
+<code>org.springframework.transaction.annotation.Transactional</code> が標準（ロールバック対象の例外の扱いなどが微妙に違う）。ここだけ差し替えてください。
+</div>
+<div class="concept">
+<span class="box-label">🟢 トランザクションとは（やさしく説明）</span>
+<span class="term" data-tooltip="複数のDB操作を「全部成功 or 全部取り消し」の1単位にまとめる仕組み">トランザクション</span>
+＝「いくつかの作業をまとめて<strong>1つの塊</strong>として扱い、<strong>途中で失敗したら全部なかったことにする</strong>」仕組みです。
+<br><br>
+例えるなら<strong>銀行の送金</strong>。「Aから引く」「Bに足す」の2つは、両方成功して初めて意味があります。
+もし「Aから引いた直後に停電」で片方だけ実行されたら大問題ですよね。だから
+「両方成功 or 両方取り消し（＝<span class="term" data-tooltip="途中まで実行した処理を全部取り消して元に戻すこと">ロールバック</span>）」にまとめます。
+</div>
+<p>
+このアプリでは <code>ingest()</code> が「<strong>たくさんの観測値をまとめて保存する</strong>」作業です。
+10件保存中に5件目でエラーが出たとき、「4件だけ入って残りは無い」という中途半端な状態は避けたい。
+だから <code>ingest()</code> 全体を1つの塊にします。
+</p>
+<div class="user-task"><span class="box-label">🖊️ あなたが直す（import の1行だけ）</span>
+<pre><code>- import jakarta.transaction.Transactional;
++ import org.springframework.transaction.annotation.Transactional;</code></pre>
+</div>
+<ul class="checklist">
+  <li data-done><code>ingest()</code> に <code>@Transactional</code> を付けた</li>
+  <li>import を <code>org.springframework.transaction.annotation.Transactional</code> に変更した</li>
+  <li><code>./gradlew compileJava</code> が通ることを確認した</li>
+</ul>
+
+<h2 id="dup">5. <span class="step-num">C</span>課題C：重複保存を防ぐ（existsBy）</h2>
+<p>
+同じ処理を2回動かすと、まったく同じ観測値（同じ地点・同じ時刻）が<strong>2件ダブって保存</strong>されます。これを防ぎます。
+</p>
+<div class="concept">
+<span class="box-label">🟢 やさしく説明</span>
+repository（DBアクセス係）には
+<code>existsByObservationPointAndMeasuredAt(point, measuredAt)</code> というメソッドがあります。
+これは「<strong>その地点・その時刻のデータは、もうDBに有る？</strong>」を尋ねて
+<strong>有る＝true / 無い＝false</strong> を返します。これを使って「<strong>まだ無いデータだけ保存する</strong>」ようにします。
+</div>
+<div class="user-task"><span class="box-label">🖊️ あなたが書く（どこに足すか考える）</span>
+<pre><code>List&lt;PollenMeasurement&gt; entities = rows.stream()
+        .filter(this::isValid)
+        .filter(row -&gt; <span class="blank">/* ★ まだ保存されていない行だけ通す条件 */</span>)
+        .map(row -&gt; toEntity(row, point))
+        .toList();</code></pre>
+ヒント：<code>existsBy...</code> は「ある＝true」を返します。<strong>残したいのは「まだ無い行」</strong>なので、
+条件をどう書く？（<code>isValid</code> の <code>filter</code> と同じ考え方）
+</div>
+<ul class="checklist">
+  <li><code>filter</code> を1つ追加して、既に保存済みの行を除外した</li>
+  <li>条件の<strong>向き</strong>（true/false のどちらを残すか）を口で説明できる</li>
+  <li>アプリを2回起動しても行数が増えないことを <code>SELECT count(*)</code> で確認した</li>
+</ul>
+<div class="warning"><span class="box-label">🟡 性能の小話（今は気にしなくてOK）</span>
+この方式は行ごとに1回SQLを投げます（N回）。Phase 1 の少量データなら問題なし。
+大量データでは「まとめて存在確認」に変える余地がある、と頭の片隅に。</div>
+
+<h2 id="runner">6. <span class="step-num">D</span>課題D：CommandLineRunner で起動時に実行</h2>
+<div class="concept">
+<span class="box-label">🟢 CommandLineRunner とは（やさしく説明）</span>
+<code>ingest()</code> という「処理本体」はできました。でも<strong>誰かが呼ばないと動きません</strong>。
+そこで「アプリが起動したら自動で <code>ingest()</code> を呼ぶ」係を作ります。それが
+<span class="term" data-tooltip="Spring Bootの起動が完了した直後に、run()の中身を1回だけ自動実行してくれる仕組み">CommandLineRunner</span> です。
+<br><br>
+たとえるなら<strong>「店の開店と同時に1回だけ流す自動アナウンス」</strong>。アプリ起動（開店）が終わると、
+<code>run()</code> に書いた処理（アナウンス）が自動で1回流れます。ボタンを押す手間なく確認できるので、Phase 1 の動作確認にぴったりです。
+<br><br>
+（補足：
+<span class="term" data-tooltip="Springが自動で生成・管理してくれるオブジェクト。@Componentを付けるとSpringが見つけて使ってくれる">Bean</span>
+という言葉が出てきますが、いまは「<code>@Component</code> を付けると Spring が自動で見つけて動かしてくれるクラス」くらいの理解でOKです）
+</div>
+<div class="user-task"><span class="box-label">🖊️ あなたが書く（新規クラス）</span>
+<pre><code>@Component
+public class IngestRunner implements CommandLineRunner {
+
+    private final PollenIngestService service;
+
+    public IngestRunner(PollenIngestService service) {   // 依存注入
+        this.service = service;
+    }
+
+    @Override
+    public void run(String... args) throws Exception {
+        service.ingest(<span class="blank">/* ★ 取得したい都市コード */</span>);
+    }
+}</code></pre>
+考える点：渡す <code>cityCode</code> は
+<a href="../references/2026-06-03_ポールンロボAPI仕様メモ.html">ポールンロボAPI仕様メモ</a> の実在コードを使い、
+かつ <a href="#seed">§2 の seed</a> で <code>observation_points</code> に登録済みであること。
+</div>
+<ul class="checklist">
+  <li><code>IngestRunner</code> クラスを新規作成した（<code>@Component</code> + <code>CommandLineRunner</code>）</li>
+  <li>コンストラクタで <code>PollenIngestService</code> を受け取った（<span class="term" data-tooltip="必要な部品を自分で作らず、外から渡してもらう設計">依存注入</span>）</li>
+  <li>渡す都市コードを決め、§2 の seed の <code>external_id</code> と一致させた</li>
+</ul>
+
+<h2 id="run">7. <span class="step-num">E</span>動かす手順と確認方法</h2>
+<div class="implementation">
+<span class="box-label">🔵 実行手順（上から順に）</span>
+下のチェックリストを上から順に消化すれば Phase 1 は完了です。
+</div>
+<ul class="checklist">
+  <li>Docker Desktop を起動する（前回セッション時点では停止中でした）</li>
+  <li><code>docker compose up -d</code> で PostgreSQL を起動する</li>
+  <li><code>application.yml</code> に <code>spring.jpa.show-sql: true</code> を入れる（SQLがログに出る）</li>
+  <li><code>./gradlew bootRun</code>（または IntelliJ の実行ボタン）でアプリを起動する</li>
+  <li>起動ログに <code>IngestRunner</code> の実行と <code>insert into pollen_measurements ...</code> が流れるのを見る</li>
+  <li><code>SELECT * FROM pollen_measurements;</code> で行が入っているのを<strong>自分の目で</strong>確認する</li>
+  <li>もう一度起動して、<strong>行数が増えない</strong>（重複防止が効いている）ことを確認する</li>
+  <li>🎉 <strong>Phase 1 クリア</strong>。学んだ点・ハマった点をメモに残す</li>
+</ul>
+<p>詳しい起動・DB接続の検証手順は
+<a href="../plans/2026-06-01_DB接続起動検証プラン.html">DB接続＆起動検証プラン</a> を参照。</p>
+
+<h2 id="pitfall">8. やりがちな失敗</h2>
+<div class="danger">
+<ul style="margin:0.3rem 0;">
+  <li><strong>観測地点が未登録</strong> → <code>orElseThrow</code> で「観測地点が見つかりません」（§2 の前提）</li>
+  <li><strong>createdAt 未設定のまま実行</strong> → NOT NULL 制約違反（§3・対応済み）</li>
+  <li><strong>@Transactional の import 間違い</strong> → <code>jakarta.transaction</code> でも動くが、Springでは <code>org.springframework...</code> が標準（§4・要修正）</li>
+  <li><strong>重複 filter の向き逆</strong> → 既存行だけ保存しようとして1件も入らない（§5）</li>
+  <li><strong>Docker未起動でbootRun</strong> → 接続拒否エラー。先にDBを起動</li>
+</ul>
+</div>
+
+<h2 id="check">9. 理解度チェック</h2>
+<details><summary>Q1. createdAt はなぜ @PrePersist で入れる？</summary>
+<p>DBのNOT NULL制約があり、保存直前に必ず値が必要だから。@PrePersist は INSERT 直前に自動で呼ばれるので入れ忘れを防げる。</p></details>
+<details><summary>Q2. @Transactional を ingest に付ける理由は？</summary>
+<p>複数行の保存を1単位にし、途中で失敗したら全部ロールバックして中途半端な状態を残さないため。</p></details>
+<details><summary>Q3. 重複を防ぐ filter の条件はどう書く？</summary>
+<p>existsBy...は「ある=true」。残したいのは「まだ無い行」なので否定（!）で「存在しない行だけ通す」。</p></details>
+<details><summary>Q4. CommandLineRunner は何のために使う？</summary>
+<p>アプリ起動完了直後に run() を1回実行させ、ingest を自動で呼ぶため（Phase 1 の手動確認用トリガー）。</p></details>
+<details><summary>Q5. 実行前に DB に用意しておくべきものは？</summary>
+<p>対象の観測地点（observation_points の行）。無いと findByExternalId が空で orElseThrow に落ちる。</p></details>
+
+<h2 id="next">10. 次にやること（Phase 2 予告）</h2>
+<div class="tip">
+このガイドのチェックが全部埋まれば <strong>Phase 1 クリア</strong>（取得→保存が動く）。次の Phase 2 では：
+<ul style="margin:0.4rem 0;">
+  <li><strong>CommandLineRunner → @Scheduled</strong> へ：起動時1回ではなく定期実行に</li>
+  <li><span class="term" data-tooltip="観測値がしきい値を超えたか判断するドメインロジック">通知判定</span>：しきい値超過を判定</li>
+  <li><strong>Discord通知</strong>：通知をインターフェース越しに送る（差し替え可能な設計）</li>
+</ul>
+今日の <code>ingest</code> が、Phase 2 で「定期実行される本体」に育ちます。
+</div>
+
+<hr style="margin:3rem 0; border:none; border-top:1px dashed #C9CEC4;">
+<h2>更新履歴</h2>
+<ul style="font-size:0.9rem; color:#3D4654;">
+  <li><strong>2026-06-14（初版）</strong>：作成。</li>
+  <li><strong>2026-06-14（改訂）</strong>：課題A〜D の説明を、Spring Boot を知らない人向けにたとえ話＋平易な解説へ書き換え。</li>
+  <li><strong>2026-08-27（チェックリスト版）</strong>：進捗をチェックボックスで管理する形に全面改訂。冒頭に残作業ダッシュボードを追加。
+      実コードを読んで A・B の完了を反映し、未着手だった「観測地点 seed」を §2 として独立させた。配色を読みやすさ基準に更新。</li>
+  <li><strong>2026-08-27（連動対応）</strong>：ダッシュボードを各セクションのチェックから自動計算する方式に変更（<code>data-sync</code>）。
+      二重にチェックを付ける手間と、ダッシュボードだけ古いまま残る食い違いを解消。</li>
+</ul>
+
+<script>
+(function () {
+  const PAGE_KEY = 'pollen-notify:phase1-ingest-guide';
+
+  function nearestSectionId(el) {
+    let n = el;
+    while (n) {
+      let p = n.previousElementSibling;
+      while (p) {
+        if (/^H[1-6]$/.test(p.tagName) && p.id) return p.id;
+        p = p.previousElementSibling;
+      }
+      if (n.id) return n.id;
+      n = n.parentElement;
+    }
+    return 'root';
+  }
+
+  // sectionKey -> { items:[li], update:fn }  ダッシュボードから参照するための登録簿
+  const registry = {};
+  const listeners = [];
+
+  function setup(ul, idx) {
+    const sectionKey = nearestSectionId(ul);
+    const items = Array.from(ul.children).filter(c => c.tagName === 'LI');
+    // data-sync を持つ項目は「他のリストから計算される」＝手入力も保存もしない
+    const isDerived = li => li.hasAttribute('data-sync');
+
+    items.forEach((li, i) => {
+      if (li.querySelector(':scope > input[type="checkbox"]')) return;
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.id = PAGE_KEY + ':' + sectionKey + ':' + idx + ':' + i;
+      const body = document.createElement('span');
+      body.className = 'check-body';
+      while (li.firstChild) body.appendChild(li.firstChild);
+      li.appendChild(cb);
+      li.appendChild(body);
+
+      if (isDerived(li)) {
+        cb.disabled = true;
+        cb.title = '各セクションのチェックから自動で更新されます';
+        const count = document.createElement('span');
+        count.className = 'sync-count';
+        (body.querySelector('.memo') || body).appendChild(count);
+        return;   // 保存も change ハンドラも付けない
+      }
+
+      let stored = null;
+      try { stored = localStorage.getItem(cb.id); } catch (e) { /* file:// 等で不可 */ }
+      const checked = (stored === null) ? li.hasAttribute('data-done') : (stored === '1');
+      cb.checked = checked;
+      li.classList.toggle('done', checked);
+
+      cb.addEventListener('change', () => {
+        li.classList.toggle('done', cb.checked);
+        try { localStorage.setItem(cb.id, cb.checked ? '1' : '0'); } catch (e) {}
+        update();
+        listeners.forEach(fn => fn());   // ダッシュボードへ通知
+      });
+    });
+
+    const hasDerived = items.some(isDerived);
+    const wrap = document.createElement('div');
+    wrap.innerHTML =
+      '<div class="progress-label"><span class="progress-text"></span></div>' +
+      '<div class="progress-bar"><div class="progress-fill"></div></div>' +
+      (hasDerived ? '' :
+        '<div class="checklist-controls"><button type="button" class="reset-btn">リセット</button></div>');
+    ul.parentNode.insertBefore(wrap, ul);
+
+    function update() {
+      const total = items.length;
+      const done = items.filter(li => li.classList.contains('done')).length;
+      wrap.querySelector('.progress-text').textContent =
+        done + ' / ' + total + ' 完了' + (done === total && total > 0 ? ' 🎉' : '');
+      wrap.querySelector('.progress-fill').style.width =
+        (total ? (done / total * 100) : 0) + '%';
+    }
+
+    const resetBtn = wrap.querySelector('.reset-btn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (!confirm('このチェックリストの状態を初期状態に戻しますか？')) return;
+        items.forEach(li => {
+          const cb = li.querySelector(':scope > input[type="checkbox"]');
+          if (!cb) return;
+          try { localStorage.removeItem(cb.id); } catch (e) {}
+          const d = li.hasAttribute('data-done');
+          cb.checked = d;
+          li.classList.toggle('done', d);
+        });
+        update();
+        listeners.forEach(fn => fn());
+      });
+    }
+
+    registry[sectionKey] = { items: items, update: update };
+    update();
+  }
+
+  // "seed"（そのセクション全項目） / "tx#1"（1項目） / "tx#1,tx#2"（複数）を解決する
+  function resolve(spec) {
+    const out = [];
+    spec.split(',').forEach(part => {
+      const [sec, idx] = part.trim().split('#');
+      const reg = registry[sec];
+      if (!reg) return;
+      if (idx === undefined) out.push.apply(out, reg.items);
+      else if (reg.items[Number(idx)]) out.push(reg.items[Number(idx)]);
+    });
+    return out;
+  }
+
+  function syncDerived() {
+    document.querySelectorAll('ul.checklist > li[data-sync]').forEach(li => {
+      const refs = resolve(li.getAttribute('data-sync'));
+      const done = refs.filter(r => r.classList.contains('done')).length;
+      const all = refs.length > 0 && done === refs.length;
+      const cb = li.querySelector(':scope > input[type="checkbox"]');
+      if (cb) cb.checked = all;
+      li.classList.toggle('done', all);
+      const count = li.querySelector('.sync-count');
+      if (count) count.textContent = ' 〔' + done + '/' + refs.length + ' 済〕';
+    });
+    Object.keys(registry).forEach(k => {
+      if (registry[k].items.some(li => li.hasAttribute('data-sync'))) registry[k].update();
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('ul.checklist').forEach((ul, i) => setup(ul, i));
+    listeners.push(syncDerived);
+    syncDerived();
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>DB接続＆起動検証プラン（Docker + Flyway + validate）| 花粉通知アプリ</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+         max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.75; color: #1f2937; background: #fafafa; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.5rem; font-size: 1.75rem; }
+  h2 { border-left: 5px solid #2563eb; padding-left: 0.6rem; margin-top: 2.4rem; font-size: 1.28rem; }
+  h3 { margin-top: 1.4rem; font-size: 1.05rem; color: #374151; }
+  .term { border-bottom: 1px dotted #2563eb; cursor: help; }
+  .concept { background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .implementation { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .danger { background: #fee2e2; border-left: 4px solid #ef4444; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .tip { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+  th, td { border: 1px solid #d1d5db; padding: 0.5rem 0.8rem; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  code { background: #eef2f7; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: "Consolas","Menlo",monospace; }
+  pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .toc { background: #f9fafb; border: 1px solid #e5e7eb; padding: 1rem 1.5rem; border-radius: 6px; }
+  .toc ol { margin: 0.3rem 0; }
+  .toc a { color: #2563eb; text-decoration: none; }
+  details { background: #f9fafb; padding: 0.8rem 1rem; border-radius: 4px; margin: 0.5rem 0; border: 1px solid #e5e7eb; }
+  summary { cursor: pointer; font-weight: bold; }
+  .ref-link { font-size: 0.88rem; color: #6b7280; margin-top: 0.6rem; }
+  .ref-link a { color: #2563eb; }
+  ul.checklist { list-style: none; padding-left: 0; }
+  ul.checklist li { padding: 0.3rem 0; display: flex; align-items: flex-start; gap: 0.6rem; }
+  ul.checklist li > input[type="checkbox"] { margin-top: 0.4rem; width: 1.15rem; height: 1.15rem; flex-shrink: 0; cursor: pointer; accent-color: #2563eb; }
+  ul.checklist li > .check-body { flex: 1; }
+  ul.checklist li.done > .check-body { color: #9ca3af; text-decoration: line-through; text-decoration-thickness: 1.5px; }
+  ul.checklist li.done > .check-body code { opacity: 0.55; }
+  .progress-bar { background: #e5e7eb; border-radius: 9999px; height: 0.6rem; overflow: hidden; margin: 0.4rem 0 0.8rem 0; }
+  .progress-fill { background: linear-gradient(to right, #10b981, #059669); height: 100%; transition: width 0.3s ease; }
+  .progress-label { font-size: 0.85em; color: #475569; margin-bottom: 0.3rem; }
+  .checklist-controls { margin: 0.5rem 0 1rem 0; }
+  .checklist-controls button { background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; padding: 0.3rem 0.7rem; font-size: 0.85rem; cursor: pointer; margin-right: 0.4rem; color: #374151; }
+  .checklist-controls button:hover { background: #e5e7eb; }
+</style>
+</head>
+<body>
+
+<h1>🐳 DB接続＆起動検証プラン</h1>
+<p style="color:#6b7280;">花粉通知アプリ ／ 2026-06-01 ／ Phase 1 ／ Docker + Flyway + Hibernate validate</p>
+
+<div class="concept">
+<strong>このプランのゴール</strong><br>
+ここまで「コンパイルは通った」状態でしたが、<strong>コンパイル成功＝DBで動く、ではありません</strong>。PostgreSQL を起動し、アプリを起動して、次の2つを<strong>実DBで検証</strong>します：
+<ol>
+  <li><span class="term" data-tooltip="DBスキーマをバージョン管理し順に適用するツール">Flyway</span> が <code>V1__init.sql</code> を流してテーブルが作られる</li>
+  <li>Hibernate の <code>ddl-auto: validate</code> が「Entityのマッピング ↔ 実テーブル」の一致を検証して<strong>パスする</strong></li>
+</ol>
+これが通れば、B方針で書いた <code>@Column</code> 制約・<code>@SequenceGenerator</code>・複合UNIQUE が<strong>本当に正しかった</strong>と証明できます。
+</div>
+
+<div class="toc">
+<strong>📑 目次</strong>
+<ol>
+  <li><a href="#flow">全体の流れ</a></li>
+  <li><a href="#step1">Step 1: PostgreSQL を起動</a></li>
+  <li><a href="#step2">Step 2: アプリを起動して検証</a></li>
+  <li><a href="#read">起動ログの読み方（成功/失敗）</a></li>
+  <li><a href="#verify">Step 3: テーブルを直接のぞく（任意）</a></li>
+  <li><a href="#trouble">つまずきポイント別トラブルシュート</a></li>
+  <li><a href="#check">理解度チェック</a></li>
+  <li><a href="#next">次にやること</a></li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="flow">1. 全体の流れ</h2>
+<pre><code>docker compose up -d      ← ① PostgreSQL コンテナ起動
+        │
+        ▼
+./gradlew bootRun         ← ② アプリ起動
+        │
+        ├─ Flyway が V1__init.sql を実行 → テーブル作成
+        └─ Hibernate validate が Entity ↔ テーブル を照合
+        │
+        ▼
+  起動成功 = 検証パス 🎉</code></pre>
+
+<div class="implementation">
+🔵 <strong>前提（すでに用意済み）</strong>：<code>docker-compose.yml</code>（PostgreSQL 16）・<code>application.yml</code>（<code>validate</code> + Flyway + show-sql）・<code>.env</code>（接続情報）・依存（postgresql / flyway / webmvc）はすべて投入済み。新しく書くものはありません。<strong>起動して確認するだけ</strong>。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="step1">2. Step 1: PostgreSQL を起動</h2>
+
+<p>プロジェクトのルート（<code>docker-compose.yml</code> がある場所）で実行します。IntelliJ の内蔵ターミナル（<code>Alt+F12</code>）でOK。</p>
+
+<ul class="checklist">
+  <li>ターミナルをプロジェクトルートで開く（<code>docker-compose.yml</code> が見える場所）</li>
+  <li><code>docker compose up -d</code> を実行（<code>-d</code> はバックグラウンド起動）</li>
+  <li><code>docker compose ps</code> で <code>pollen-notify-db</code> が <code>healthy</code> になるのを確認（数秒かかる）</li>
+</ul>
+
+<div class="implementation">
+🔵 <strong>コマンド</strong>
+<pre><code># 起動
+docker compose up -d
+
+# 状態確認（STATUS が "healthy" になればOK）
+docker compose ps</code></pre>
+</div>
+
+<div class="tip">
+🟣 <code>healthcheck</code>（<code>pg_isready</code>）が <code>docker-compose.yml</code> に仕込んであるので、<code>healthy</code> 表示まで待てば「DBが接続を受け付ける状態」が保証されます。<code>healthy</code> 前にアプリを起動すると接続エラーになることがあるので、ひと呼吸待つ。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="step2">3. Step 2: アプリを起動して検証</h2>
+
+<ul class="checklist">
+  <li>DBが <code>healthy</code> なのを確認済み</li>
+  <li><code>./gradlew bootRun</code> でアプリ起動（IntelliJなら起動構成の ▶ でも可）</li>
+  <li>ログに <code>Flyway ... Successfully applied 1 migration</code> 系が出る</li>
+  <li>ログに <code>Started PollenNotifyApplication in X.XXX seconds</code> が出る（=起動成功）</li>
+  <li>エラーで落ちていない（<code>SchemaManagementException</code> 等が無い）</li>
+  <li>確認できたら <code>Ctrl+C</code> でアプリ停止</li>
+</ul>
+
+<div class="implementation">
+🔵 <strong>コマンド</strong>
+<pre><code>./gradlew bootRun
+# Windows PowerShell でも同じ。IntelliJ内蔵ターミナル推奨</code></pre>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="read">4. 起動ログの読み方（成功 / 失敗）</h2>
+
+<h3>✅ 成功パターン（こう出れば検証パス）</h3>
+<pre><code>Flyway Community Edition ... by Redgate
+Successfully validated 1 migration
+Migrating schema "public" to version "1 - init"
+Successfully applied 1 migration to schema "public"
+...
+Started PollenNotifyApplication in 3.2 seconds</code></pre>
+<div class="concept">🟢 ここまで出れば、Flyway がテーブルを作り、Hibernate validate が <strong>Entity と一致を確認</strong>して起動完了。<strong>あなたのEntity設計が実DBで正しいと証明された</strong>。</div>
+
+<h3>🔴 失敗パターン例：validate でマッピング不一致</h3>
+<pre><code>org.hibernate.tool.schema.spi.SchemaManagementException:
+  Schema-validation: missing column [xxx] in table [yyy]</code></pre>
+<div class="danger">
+🔴 これは「Entityが期待する列が実テーブルに無い」＝マッピングとDDLのズレ。例：<code>@Column(name=...)</code> の綴り間違い、フィールドを追加したのにDDL未更新、など。エラーに<strong>テーブル名・列名が出る</strong>ので、その列をSQLとEntityで突き合わせる。
+</div>
+
+<h3>🔴 失敗パターン例：DBに繋がらない</h3>
+<pre><code>org.postgresql.util.PSQLException: Connection refused / FATAL: password authentication failed</code></pre>
+<div class="danger">
+🔴 DB未起動、<code>.env</code> の値とDBの不一致、ポート競合など。→ トラブルシュート参照。
+</div>
+
+<div class="ref-link">📚 関連：<a href="../references/2026-06-01_SpringDataJPA内部の仕組み.html">Spring Data JPA 内部の仕組み</a>（show-sql でSQLを観察）／ <a href="../references/2026-05-31_命名規則リファレンス.html">命名規則</a>（列名ズレの原因切り分け）</div>
+
+<!-- ============================================================ -->
+<h2 id="verify">5. Step 3: テーブルを直接のぞく（任意）</h2>
+<p>本当にテーブルができたか、自分の目で確認すると納得感があります。</p>
+
+<ul class="checklist">
+  <li><code>docker compose exec db psql -U &lt;ユーザー&gt; -d &lt;DB名&gt;</code> で psql に入る（<code>.env</code> の値を使う）</li>
+  <li><code>\dt</code> で <code>observation_points</code> / <code>pollen_measurements</code> / <code>flyway_schema_history</code> が見える</li>
+  <li><code>\d observation_points</code> で列・制約（NOT NULL / UNIQUE）がDDLどおりか確認</li>
+  <li><code>\q</code> で抜ける</li>
+</ul>
+
+<div class="tip">
+🟣 <code>flyway_schema_history</code> という表が自動で出来ています。これはFlywayが「どのマイグレーションを適用済みか」を記録する管理表。次に <code>V2__...</code> を足すと差分だけ適用される仕組みの正体。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="trouble">6. つまずきポイント別トラブルシュート</h2>
+
+<table>
+<tr><th>症状</th><th>原因の仮説</th><th>対処</th></tr>
+<tr><td><code>Connection refused</code></td><td>DB未起動 / <code>healthy</code> 前に起動した</td><td><code>docker compose ps</code> で healthy 確認後に再起動</td></tr>
+<tr><td><code>password authentication failed</code></td><td><code>.env</code> とDB側の不一致。<strong>ボリュームに古い初期化が残存</strong></td><td><code>.env</code> 確認。必要なら <code>docker compose down -v</code> でボリューム削除して作り直し（※データ消える）</td></tr>
+<tr><td><code>port 5432 already in use</code></td><td>ローカルPostgreSQLや別コンテナと競合</td><td>既存を止めるか、compose のポートを <code>5433:5432</code> 等に変更（その場合 url も合わせる）</td></tr>
+<tr><td><code>Schema-validation: missing column</code></td><td>Entityの列名/有無がDDLとズレ</td><td>エラーの列名をSQL↔Entityで突合（命名規則ガイド）</td></tr>
+<tr><td><code>missing sequence</code> 系</td><td><code>@SequenceGenerator</code> の <code>sequenceName</code> が実シーケンスと不一致</td><td><code>BIGSERIAL</code> が作る <code>&lt;table&gt;_id_seq</code> と一致しているか確認</td></tr>
+<tr><td>Flyway が走らない</td><td><code>spring.flyway.enabled</code> やロケーション</td><td><code>application.yml</code> の <code>locations: classpath:db/migration</code> を確認</td></tr>
+</table>
+
+<div class="warning">
+🟡 <code>docker compose down -v</code> の <code>-v</code> は<strong>DBのデータを消す</strong>。Phase 1の今は中身が無いので問題ないが、「初期パスワードを変えたのに反映されない」時の定番リセット手段として覚えておく（PostgreSQLは初回起動時しか <code>POSTGRES_PASSWORD</code> を読まないため）。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="check">7. 理解度チェック</h2>
+
+<details>
+<summary>Q1. <code>ddl-auto: validate</code> は何をする設定？ <code>create</code> と何が違う？</summary>
+<p><code>validate</code>=「Entityと既存テーブルが一致するか<strong>検証だけ</strong>」。<code>create</code>=「Hibernateがテーブルを<strong>作り直す</strong>」。本プロジェクトはFlywayがDDL担当なので、Hibernateは検証のみ＝<code>validate</code>。</p>
+</details>
+<details>
+<summary>Q2. アプリが起動成功した、ということは何が保証された？</summary>
+<p>① FlywayがV1を適用しテーブルが出来た ② Entityのマッピングが実テーブルと一致した（validateパス）。つまりEntity設計が実DBで正しい。</p>
+</details>
+<details>
+<summary>Q3. <code>flyway_schema_history</code> 表の役割は？</summary>
+<p>適用済みマイグレーションの記録。次に <code>V2</code> を追加したとき、未適用の差分だけを順に当てるための台帳。</p>
+</details>
+<details>
+<summary>Q4. <code>show-sql: true</code> にしていると何が見える？ なぜ今ONにしている？</summary>
+<p>HibernateがDBへ発行する実SQL。学習中は「自分のコードがどんなSQLになるか」を観察できるのでON。本番は大量ログになるのでOFFにする。</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="next">8. 次にやること</h2>
+
+<div class="concept">
+🟢 このプランがすべて ✅ になったら、Phase 1 の「器」が完成です（Entity・Repository・DBが実際に繋がった状態）。<br>
+次はいよいよ <strong>外部API（ポールンロボ）からデータを取得 → DTO → <code>PollenMeasurement.of(...)</code> で変換 → <code>repository.save()</code> で保存</strong> という Phase 1 の本丸へ。ここで <code>-9999</code>=欠測の判断、<code>RestClient</code>、<code>from(dto)</code> 命名が登場します。
+</div>
+
+<div class="tip">
+🟣 <strong>Phase 4への伏線</strong>：今「DBが正しく繋がる土台」を作ったことで、後のDDDリファクタで「ドメインを変えてもDB検証で守られる」安全網ができた。validate が通る状態を維持しながらリファクタするのが理想。
+</div>
+
+<hr style="margin: 3rem 0; border: none; border-top: 1px dashed #cbd5e1;">
+<p style="text-align:center; color:#6b7280; font-size:0.9em;">DB接続＆起動検証プラン ／ 花粉通知アプリ ／ 作成 2026-06-01</p>
+
+<script>
+(function () {
+  const PAGE_KEY = 'pollen-notify:db-connection-verification';
+
+  function nearestSectionId(el) {
+    let n = el;
+    while (n) {
+      let p = n.previousElementSibling;
+      while (p) {
+        if (/^H[1-6]$/.test(p.tagName) && p.id) return p.id;
+        p = p.previousElementSibling;
+      }
+      if (n.id) return n.id;
+      n = n.parentElement;
+    }
+    return 'root';
+  }
+
+  function setup(ul, idx) {
+    const sectionKey = nearestSectionId(ul);
+    const items = Array.from(ul.children).filter(c => c.tagName === 'LI');
+
+    items.forEach((li, i) => {
+      if (li.querySelector(':scope > input[type="checkbox"]')) return;
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.id = `${PAGE_KEY}:${sectionKey}:${idx}:${i}`;
+      const body = document.createElement('span');
+      body.className = 'check-body';
+      while (li.firstChild) body.appendChild(li.firstChild);
+      li.appendChild(cb);
+      li.appendChild(body);
+      if (localStorage.getItem(cb.id) === '1') {
+        cb.checked = true;
+        li.classList.add('done');
+      }
+      cb.addEventListener('change', () => {
+        li.classList.toggle('done', cb.checked);
+        localStorage.setItem(cb.id, cb.checked ? '1' : '0');
+        update();
+      });
+    });
+
+    const wrap = document.createElement('div');
+    wrap.innerHTML =
+      '<div class="progress-label"><span class="progress-text"></span></div>' +
+      '<div class="progress-bar"><div class="progress-fill"></div></div>' +
+      '<div class="checklist-controls"><button type="button" class="reset-btn">リセット</button></div>';
+    ul.parentNode.insertBefore(wrap, ul);
+
+    function update() {
+      const total = items.length;
+      const done = items.filter(li => li.classList.contains('done')).length;
+      wrap.querySelector('.progress-text').textContent =
+        `${done} / ${total} 完了` + (done === total && total > 0 ? ' 🎉' : '');
+      wrap.querySelector('.progress-fill').style.width =
+        (total ? (done / total * 100) : 0) + '%';
+    }
+
+    wrap.querySelector('.reset-btn').addEventListener('click', () => {
+      if (!confirm('このチェックリストの状態をリセットしますか？')) return;
+      items.forEach(li => {
+        const cb = li.querySelector(':scope > input[type="checkbox"]');
+        if (cb) { cb.checked = false; li.classList.remove('done'); localStorage.removeItem(cb.id); }
+      });
+      update();
+    });
+
+    update();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('ul.checklist').forEach((ul, i) => setup(ul, i));
+  });
+})();
+</script>
+
+</body>
+</html>

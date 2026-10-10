@@ -47,19 +47,43 @@
 
 <ul class="doc-list">
   <li>
-    <a href="guides/2026-05-31_spring-data-jpa-repository.html">Repository 実装ガイド（Spring Data JPA）</a>
+    <a href="guides/2026-10-09_Phase2ガイド-しきい値判定とDiscord通知.html">Phase 2 ガイド：しきい値判定・Discord通知・定期実行</a>
+    <span class="doc-meta">2026-10-09</span>
+    <span class="phase-badge">Phase 2</span>
+    <p class="doc-desc">Phase 1完了を受けて作成。F（しきい値判定ロジック NotificationDecision）→G（通知ポート抽象化＋Discord通知）→H（@Scheduledで定期実行化）→I（動作確認）の順で進める理由と穴埋め骨格。「自動化は最後」の設計判断を解説。</p>
+  </li>
+  <li>
+    <a href="guides/2026-06-14_Phase1完成-ingest実行と動作確認.html">Phase 1 完成：ingest を動かして DB保存を確認する</a>
+    <span class="doc-meta">2026-06-14</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">コンパイルが通った ingest() を実際に起動して DB に保存するまで。実行で落ちる3課題（createdAt自動設定@PrePersist・@Transactional・重複防止existsBy）＋ CommandLineRunner による起動トリガー＋動作確認手順。各課題に穴埋め骨格と理解度チェック付き。これでPhase 1クリア。</p>
+  </li>
+  <li>
+    <a href="guides/2026-06-14_レイヤー構成とパッケージの役割.html">レイヤー構成とパッケージの役割（client / dto / service / entity / repository）</a>
+    <span class="doc-meta">2026-06-14</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">5つのパッケージが「何をする係か」を、自分が書いた実コード（PollenApiClient / PollenCsvRow / PollenIngestService / PollenMeasurement / *Repository）を題材に解説。データの流れのSVG図、責務対比表、やりがちな混同、Phase 4(DDD)への伏線、理解度チェック付き。初学者向け。</p>
+  </li>
+  <li>
+    <a href="guides/2026-06-03_外部API連携ガイド.html">外部API連携ガイド（RestClient + CSV + DTO → Entity）</a>
+    <span class="doc-meta">2026-06-03</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">Phase 1の本丸。ポールンロボAPI(CSV)取得→DTO→PollenMeasurement.of()→save の4層フロー。RestClient・Commons CSVパース・-9999欠測の判断・地点解決・重複防止・@Transactional。各ステップに穴埋め骨格と課題。</p>
+  </li>
+  <li>
+    <a href="guides/2026-05-31_Repository実装ガイド.html">Repository 実装ガイド（Spring Data JPA）</a>
     <span class="doc-meta">2026-05-31</span>
     <span class="phase-badge">Phase 1</span>
     <p class="doc-desc">Entity の次のステップ。JpaRepository の継承、タダで手に入るメソッド、派生クエリ命名規約、external_id検索・重複防止メソッドの書き方（あなたが書く課題付き）。</p>
   </li>
   <li>
-    <a href="guides/2026-05-31_intellij-and-gradle-usage.html">IntelliJ IDEA & Gradle 使い方ガイド</a>
+    <a href="guides/2026-05-31_IntelliJとGradle使い方.html">IntelliJ IDEA & Gradle 使い方ガイド</a>
     <span class="doc-meta">2026-05-31</span>
     <span class="phase-badge">Phase 1</span>
     <p class="doc-desc">gradlew コマンドをどこで打つか（内蔵ターミナル/Gradleパネル/OSターミナル）、IntelliJ Community 2025.2 の画面構成・操作・ビルドエラーの読み方・ショートカット。</p>
   </li>
   <li>
-    <a href="guides/2026-05-25_phase1-user-implementation.html">Phase 1 ユーザー実装ガイド</a>
+    <a href="guides/2026-05-25_Phase1実装ガイド.html">Phase 1 ユーザー実装ガイド</a>
     <span class="doc-meta">2026-05-25</span>
     <span class="phase-badge">Phase 1</span>
     <p class="doc-desc">Entity → Repository → DTO → Client → Service → Controller の実装順序、レイヤー依存図、Step 1〜6 の詳細。</p>
@@ -74,13 +98,31 @@
 
 <ul class="doc-list">
   <li>
-    <a href="references/2026-05-31_naming-conventions.html">命名規則リファレンス（Java / JPA / DB）</a>
+    <a href="references/2026-06-03_ポールンロボAPI仕様メモ.html">ポールンロボAPI 仕様メモ（観察結果＋用語対応）</a>
+    <span class="doc-meta">2026-06-03</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">実レスポンス観察記録。CSV列(citycode/date/pollen)とユビキタス言語・Entity/DTOの対応表、date形式(+09:00→Instant)、0と欠測(負数)の違い、3月/6月の実例、変換フロー、未確認論点。</p>
+  </li>
+  <li>
+    <a href="references/2026-06-03_派生クエリの仕組み.html">派生クエリ：メソッド名がそのままSQLになる仕組み</a>
+    <span class="doc-meta">2026-06-03</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">「findBy用の既製関数」は存在せず、メソッド名という文字列を解析してクエリを生成する——という核心。主部/述部の解剖、主部・述部キーワード一覧、本プロジェクト2例の完全分解、戻り値とDB制約の整合、プロパティ掘り下げ、@Queryへの切り替え。</p>
+  </li>
+  <li>
+    <a href="references/2026-06-01_SpringDataJPA内部の仕組み.html">Spring Data JPA はどこで実装されるのか（内部の仕組み）</a>
+    <span class="doc-meta">2026-06-01</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">findByXxx の実装が「どこにも無い」理由。起動時のプロキシ生成フロー、SimpleJpaRepositoryへの委譲、PartTreeによるメソッド名解析、トランザクション、起動時fail-fast、show-sqlでの確認方法。</p>
+  </li>
+  <li>
+    <a href="references/2026-05-31_命名規則リファレンス.html">命名規則リファレンス（Java / JPA / DB）</a>
     <span class="doc-meta">2026-05-31</span>
     <span class="phase-badge">Phase 1</span>
     <p class="doc-desc">PascalCase / camelCase / snake_case / UPPER_SNAKE の使い分け、Java↔DBの命名自動変換、テーブル・列・FK・シーケンスの命名、ファクトリ命名（of/from/valueOf）、やりがちな失敗。</p>
   </li>
   <li>
-    <a href="references/2026-05-27_jpa-annotations-reference.html">JPA アノテーション リファレンス</a>
+    <a href="references/2026-05-27_JPAアノテーション逆引き.html">JPA アノテーション リファレンス</a>
     <span class="doc-meta">2026-05-27</span>
     <span class="phase-badge">Phase 1</span>
     <p class="doc-desc">@Entity, @Id, @GeneratedValue, @SequenceGenerator, @Column, @ManyToOne, @JoinColumn 等の用途・使用例・メリット/デメリット・本プロジェクト推奨。最小構成テンプレ付き。</p>
@@ -95,7 +137,7 @@
 
 <ul class="doc-list">
   <li>
-    <a href="design-decisions/2026-05-26_design-criteria-entity.html">Entity 設計判断ガイド（Lombok / ID 戦略 / 日時型）</a>
+    <a href="design-decisions/2026-05-26_Entity設計判断ガイド.html">Entity 設計判断ガイド（Lombok / ID 戦略 / 日時型）</a>
     <span class="doc-meta">2026-05-26</span>
     <span class="phase-badge">Phase 1</span>
     <p class="doc-desc">OOP・保守性視点から、Lombok・ID 生成戦略・日時型の選択肢を7つの判断軸で評価。SEQUENCE / Instant / @Getter+@NoArgsConstructor(PROTECTED) を推奨。</p>
@@ -110,7 +152,13 @@
 
 <ul class="doc-list">
   <li>
-    <a href="plans/2026-05-30_entity-fix-plan.html">Entity 修正プラン（ObservationPoint / PollenMeasurement）</a>
+    <a href="plans/2026-06-01_DB接続起動検証プラン.html">DB接続＆起動検証プラン（Docker + Flyway + validate）</a>
+    <span class="doc-meta">2026-06-01</span>
+    <span class="phase-badge">Phase 1</span>
+    <p class="doc-desc">PostgreSQL起動→アプリ起動でFlywayマイグレーション＆Hibernate validateを通し、Entity/Repositoryを実DBで検証する手順。ログの読み方・トラブルシュート付き（インタラクティブ・チェックリスト）。</p>
+  </li>
+  <li>
+    <a href="plans/2026-05-30_Entity修正プラン.html">Entity 修正プラン（ObservationPoint / PollenMeasurement）</a>
     <span class="doc-meta">2026-05-30</span>
     <span class="phase-badge">Phase 1</span>
     <p class="doc-desc">DDL 逸脱した ObservationPoint の修正と、PollenMeasurement 新規実装のチェックリスト。検証手順・よくあるエラー例も収録。</p>
@@ -133,13 +181,21 @@ docs/
 <h2>🗓 時系列（最近の更新順）</h2>
 <table>
 <tr><th>日付</th><th>カテゴリ</th><th>ドキュメント</th></tr>
-<tr><td>2026-05-31</td><td><span class="badge badge-guide">Guide</span></td><td><a href="guides/2026-05-31_spring-data-jpa-repository.html">Repository 実装ガイド（Spring Data JPA）</a></td></tr>
-<tr><td>2026-05-31</td><td><span class="badge badge-ref">Ref</span></td><td><a href="references/2026-05-31_naming-conventions.html">命名規則リファレンス（Java / JPA / DB）</a></td></tr>
-<tr><td>2026-05-31</td><td><span class="badge badge-guide">Guide</span></td><td><a href="guides/2026-05-31_intellij-and-gradle-usage.html">IntelliJ IDEA & Gradle 使い方ガイド</a></td></tr>
-<tr><td>2026-05-30</td><td><span class="badge badge-plan">Plan</span></td><td><a href="plans/2026-05-30_entity-fix-plan.html">Entity 修正プラン</a></td></tr>
-<tr><td>2026-05-27</td><td><span class="badge badge-ref">Ref</span></td><td><a href="references/2026-05-27_jpa-annotations-reference.html">JPA アノテーション リファレンス</a></td></tr>
-<tr><td>2026-05-26</td><td><span class="badge badge-design">Design</span></td><td><a href="design-decisions/2026-05-26_design-criteria-entity.html">Entity 設計判断ガイド</a></td></tr>
-<tr><td>2026-05-25</td><td><span class="badge badge-guide">Guide</span></td><td><a href="guides/2026-05-25_phase1-user-implementation.html">Phase 1 ユーザー実装ガイド</a></td></tr>
+<tr><td>2026-10-09</td><td><span class="badge badge-guide">Guide</span></td><td><a href="guides/2026-10-09_Phase2ガイド-しきい値判定とDiscord通知.html">Phase 2 ガイド：しきい値判定・Discord通知・定期実行</a></td></tr>
+<tr><td>2026-06-14</td><td><span class="badge badge-guide">Guide</span></td><td><a href="guides/2026-06-14_Phase1完成-ingest実行と動作確認.html">Phase 1 完成：ingest を動かして DB保存を確認する</a></td></tr>
+<tr><td>2026-06-14</td><td><span class="badge badge-guide">Guide</span></td><td><a href="guides/2026-06-14_レイヤー構成とパッケージの役割.html">レイヤー構成とパッケージの役割（client / dto / service / entity / repository）</a></td></tr>
+<tr><td>2026-06-03</td><td><span class="badge badge-ref">Ref</span></td><td><a href="references/2026-06-03_ポールンロボAPI仕様メモ.html">ポールンロボAPI 仕様メモ（観察結果＋用語対応）</a></td></tr>
+<tr><td>2026-06-03</td><td><span class="badge badge-ref">Ref</span></td><td><a href="references/2026-06-03_派生クエリの仕組み.html">派生クエリ：メソッド名がそのままSQLになる仕組み</a></td></tr>
+<tr><td>2026-06-03</td><td><span class="badge badge-guide">Guide</span></td><td><a href="guides/2026-06-03_外部API連携ガイド.html">外部API連携ガイド（RestClient + CSV + DTO → Entity）</a></td></tr>
+<tr><td>2026-06-01</td><td><span class="badge badge-plan">Plan</span></td><td><a href="plans/2026-06-01_DB接続起動検証プラン.html">DB接続＆起動検証プラン（Docker + Flyway + validate）</a></td></tr>
+<tr><td>2026-06-01</td><td><span class="badge badge-ref">Ref</span></td><td><a href="references/2026-06-01_SpringDataJPA内部の仕組み.html">Spring Data JPA はどこで実装されるのか（内部の仕組み）</a></td></tr>
+<tr><td>2026-05-31</td><td><span class="badge badge-guide">Guide</span></td><td><a href="guides/2026-05-31_Repository実装ガイド.html">Repository 実装ガイド（Spring Data JPA）</a></td></tr>
+<tr><td>2026-05-31</td><td><span class="badge badge-ref">Ref</span></td><td><a href="references/2026-05-31_命名規則リファレンス.html">命名規則リファレンス（Java / JPA / DB）</a></td></tr>
+<tr><td>2026-05-31</td><td><span class="badge badge-guide">Guide</span></td><td><a href="guides/2026-05-31_IntelliJとGradle使い方.html">IntelliJ IDEA & Gradle 使い方ガイド</a></td></tr>
+<tr><td>2026-05-30</td><td><span class="badge badge-plan">Plan</span></td><td><a href="plans/2026-05-30_Entity修正プラン.html">Entity 修正プラン</a></td></tr>
+<tr><td>2026-05-27</td><td><span class="badge badge-ref">Ref</span></td><td><a href="references/2026-05-27_JPAアノテーション逆引き.html">JPA アノテーション リファレンス</a></td></tr>
+<tr><td>2026-05-26</td><td><span class="badge badge-design">Design</span></td><td><a href="design-decisions/2026-05-26_Entity設計判断ガイド.html">Entity 設計判断ガイド</a></td></tr>
+<tr><td>2026-05-25</td><td><span class="badge badge-guide">Guide</span></td><td><a href="guides/2026-05-25_Phase1実装ガイド.html">Phase 1 ユーザー実装ガイド</a></td></tr>
 </table>
 
 <!-- ============================================================ -->
@@ -149,11 +205,18 @@ docs/
 <table>
 <tr><th>状況</th><th>読むべきドキュメント</th></tr>
 <tr><td>IntelliJ の使い方・gradlew をどこで打つか分からない</td><td>📘 IntelliJ IDEA & Gradle 使い方ガイド</td></tr>
+<tr><td>entity/repository/client/dto/service が何か分からない</td><td>📘 レイヤー構成とパッケージの役割</td></tr>
 <tr><td>これから Phase 1 を始める</td><td>📘 Phase 1 ユーザー実装ガイド</td></tr>
 <tr><td>Entity の次、Repository を書く</td><td>📘 Repository 実装ガイド（Spring Data JPA）</td></tr>
+<tr><td>APIからデータを取得してDBに保存したい</td><td>📘 外部API連携ガイド（RestClient + CSV）</td></tr>
+<tr><td>ingestを実際に動かしてPhase 1を完成させたい</td><td>📘 Phase 1 完成：ingest を動かして DB保存を確認する</td></tr>
+<tr><td>APIのCSV列が何を意味するか確認したい</td><td>📗 ポールンロボAPI 仕様メモ</td></tr>
 <tr><td>Entity を書き始める前に設計判断を見直したい</td><td>📙 Entity 設計判断ガイド</td></tr>
 <tr><td>変数・テーブル・列の名前の付け方に迷う</td><td>📗 命名規則リファレンス</td></tr>
+<tr><td>findByXxx という名前がなぜSQLになるのか知りたい</td><td>📗 派生クエリ：メソッド名がそのままSQLになる仕組み</td></tr>
+<tr><td>Repositoryのメソッドが「どこで実装されるのか」気になる</td><td>📗 Spring Data JPA 内部の仕組み</td></tr>
 <tr><td>アノテーションの使い方を確認したい</td><td>📗 JPA アノテーション リファレンス</td></tr>
+<tr><td>DBに繋いでアプリが起動するか検証したい</td><td>📕 DB接続＆起動検証プラン</td></tr>
 <tr><td>現在の作業（Entity 修正）のチェックリストが欲しい</td><td>📕 Entity 修正プラン</td></tr>
 <tr><td>過去の議論を振り返りたい</td><td>📙 Design Decisions フォルダから日付で探す</td></tr>
 </table>

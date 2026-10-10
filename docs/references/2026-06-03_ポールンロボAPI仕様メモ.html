@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ポールンロボAPI 仕様メモ（観察結果＋用語対応）| 花粉通知アプリ</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+         max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.75; color: #1f2937; background: #fafafa; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.5rem; font-size: 1.7rem; }
+  h2 { border-left: 5px solid #2563eb; padding-left: 0.6rem; margin-top: 2.5rem; font-size: 1.28rem; }
+  h3 { margin-top: 1.5rem; font-size: 1.05rem; color: #374151; }
+  .term { border-bottom: 1px dotted #2563eb; cursor: help; }
+  .concept { background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .implementation { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .danger { background: #fee2e2; border-left: 4px solid #ef4444; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .tip { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+  th, td { border: 1px solid #d1d5db; padding: 0.5rem 0.8rem; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  code { background: #eef2f7; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: "Consolas","Menlo",monospace; }
+  pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .toc { background: #f9fafb; border: 1px solid #e5e7eb; padding: 1rem 1.5rem; border-radius: 6px; }
+  .toc ol { margin: 0.3rem 0; }
+  .toc a { color: #2563eb; text-decoration: none; }
+  details { background: #f9fafb; padding: 0.8rem 1rem; border-radius: 4px; margin: 0.5rem 0; border: 1px solid #e5e7eb; }
+  summary { cursor: pointer; font-weight: bold; }
+  .ref-link { font-size: 0.88rem; color: #6b7280; margin-top: 0.6rem; }
+  .ref-link a { color: #2563eb; }
+  .obs { background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:0.4rem 0.8rem; font-size:0.8rem; color:#92400e; display:inline-block; margin-bottom:0.5rem; }
+</style>
+</head>
+<body>
+
+<h1>📡 ポールンロボAPI 仕様メモ（観察結果＋用語対応）</h1>
+<p style="color:#6b7280;">花粉通知アプリ ／ 2026-06-03 ／ Phase 1 ／ 実レスポンスの観察記録</p>
+
+<div class="concept">
+<strong>このメモの目的</strong><br>
+実際にAPIを叩いて観察したCSVの列構成を、このプロジェクトの<span class="term" data-tooltip="チーム/開発で意味を統一して使う共通の言葉（CLAUDE.md用語集）">ユビキタス言語</span>（CLAUDE.md用語集）と Entity/DTO のフィールドに<strong>対応づけて記録</strong>する。DTO設計・変換ロジックの拠り所。
+</div>
+
+<div class="toc">
+<strong>📑 目次</strong>
+<ol>
+  <li><a href="#endpoint">エンドポイントとパラメータ</a></li>
+  <li><a href="#columns">CSV列構成 ↔ ユビキタス言語 ↔ Entity/DTO</a></li>
+  <li><a href="#date">date の形式（重要：+09:00付き）</a></li>
+  <li><a href="#pollen">pollen の意味（0 と 欠測 の違い）</a></li>
+  <li><a href="#samples">実レスポンス例（3月＝飛散あり / 6月・8月＝オフ）</a></li>
+  <li><a href="#outofseason">観測期間外のレスポンス（404 / 400）</a></li>
+  <li><a href="#mapping">変換の流れ（CSV1行 → PollenMeasurement）</a></li>
+  <li><a href="#open">未確認・要注意の論点</a></li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="endpoint">1. エンドポイントとパラメータ</h2>
+<pre><code>GET https://wxtech.weathernews.com/opendata/v1/pollen
+  ?citycode=&lt;市区町村コード&gt;     例: 27123
+  &amp;start=&lt;開始日 yyyyMMdd&gt;      例: 20260301</code></pre>
+<ul>
+  <li>レスポンス：<strong>CSV（text）</strong>。Content-Type はテキスト。JSONではない。</li>
+  <li>1行目は<strong>ヘッダ行</strong>：<code>citycode,date,pollen</code></li>
+  <li>2行目以降が1時間ごとのデータ（00:00, 01:00, 02:00 …）</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="columns">2. CSV列構成 ↔ ユビキタス言語 ↔ Entity/DTO</h2>
+
+<table>
+<tr><th>CSV列</th><th>ユビキタス言語<br>(CLAUDE.md用語集)</th><th>意味</th><th>Entity フィールド</th><th>DTO フィールド</th><th>DB列</th></tr>
+<tr>
+  <td><code>citycode</code></td>
+  <td><strong>観測地点</strong><br>(Observation Point) の識別子</td>
+  <td>市区町村単位の観測ポイントを表すコード</td>
+  <td><code>ObservationPoint.externalId</code></td>
+  <td><code>cityCode</code></td>
+  <td><code>observation_points.external_id</code></td>
+</tr>
+<tr>
+  <td><code>date</code></td>
+  <td><strong>花粉観測値</strong><br>(Pollen Measurement) の観測時刻</td>
+  <td>その飛散数を観測した日時（1時間刻み）</td>
+  <td><code>PollenMeasurement.measuredAt</code></td>
+  <td><code>measuredAt</code></td>
+  <td><code>pollen_measurements.measured_at</code></td>
+</tr>
+<tr>
+  <td><code>pollen</code></td>
+  <td><strong>花粉観測値</strong><br>(Pollen Measurement) の飛散数</td>
+  <td>花粉飛散数（個/m³）</td>
+  <td><code>PollenMeasurement.pollenCount</code></td>
+  <td><code>pollenCount</code></td>
+  <td><code>pollen_measurements.pollen_count</code></td>
+</tr>
+</table>
+
+<div class="concept">
+🟢 <strong>重要な対応</strong>：CSVには <code>citycode</code> しか地点情報が無い。これが <code>ObservationPoint.externalId</code> に一致する。だから取り込み時は <code>observationPointRepository.findByExternalId(citycode)</code> で地点を解決する（無ければ新規作成）。<br>
+そして1行（citycode + date + pollen）が <strong>1個の <code>PollenMeasurement</code></strong> に対応する。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="date">3. date の形式（重要：+09:00付き）</h2>
+<pre><code>2026-03-01T00:00:00+09:00</code></pre>
+<div class="concept">
+🟢 <span class="term" data-tooltip="日時を国際標準の文字列で表す形式">ISO 8601</span> 形式で、末尾に <strong>タイムゾーンオフセット <code>+09:00</code>（日本時間, JST）が含まれている</strong>。<br>
+→ 自分でJSTと推測する必要がなく、そのまま <code>Instant</code>(UTC基準) に変換できる：
+<pre><code>Instant measuredAt = OffsetDateTime.parse("2026-03-01T00:00:00+09:00").toInstant();
+// 結果: 2026-02-28T15:00:00Z （UTCに正しく変換される）</code></pre>
+</div>
+<div class="tip">🟣 <code>application.yml</code> の <code>hibernate.jdbc.time_zone: UTC</code> と整合。DBには <code>TIMESTAMPTZ</code> でUTC基準保存され、表示時にタイムゾーン変換できる。</div>
+
+<!-- ============================================================ -->
+<h2 id="pollen">4. pollen の意味（0 と 欠測 の違い）</h2>
+
+<table>
+<tr><th>値</th><th>意味</th><th>扱い</th></tr>
+<tr><td><code>0</code></td><td>観測できた・花粉ゼロ（飛散なし）</td><td>✅ <strong>正常値。保存する</strong></td></tr>
+<tr><td><code>1</code> 以上</td><td>飛散数（個/m³）</td><td>✅ 正常値。保存する</td></tr>
+<tr><td><code>-9999</code> など負数</td><td><strong>欠測</strong>（観測なし・センサー停止）</td><td>❌ スキップ（保存しない）</td></tr>
+</table>
+
+<div class="danger">
+🔴 <strong>最重要の誤解ポイント</strong>：<code>0</code> を「データ無し」と誤解して捨てない。<code>0</code> は「観測した結果ゼロ」という<strong>正常データ</strong>。捨てるべきは<strong>負数（欠測）</strong>だけ。
+</div>
+
+<div class="concept">
+🟢 <strong>欠測値は <code>-9999</code> と確認済み</strong>（2026-10-05、<code>citycode=27123, start=20260820</code> で実機確認。24時間すべて <code>-9999</code> の日があった → 下記<a href="#samples">例C</a>）。それでもコードでは「<strong><code>pollen &lt; 0</code> なら欠測としてスキップ</strong>」という防御的な実装を変える必要はない（-9999以外の負数が来ても一律に弾けるため、より安全）。<code>PollenMeasurement.of()</code> の負数ガードが最後の砦。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="samples">5. 実レスポンス例</h2>
+
+<h3>例A：3月（花粉シーズン・飛散あり）</h3>
+<div class="obs">citycode=27123 / start=20260301 / 2026-06-03 取得</div>
+<pre><code>citycode,date,pollen
+27123,2026-03-01T00:00:00+09:00,0
+27123,2026-03-01T01:00:00+09:00,0
+27123,2026-03-01T02:00:00+09:00,1
+27123,2026-03-01T03:00:00+09:00,1
+27123,2026-03-01T04:00:00+09:00,1
+...</code></pre>
+<p>→ 深夜は0、明け方から <code>1</code> が出始める。<strong>0と正の値が混在＝これが通常パターン</strong>。欠測（負数）は無い。</p>
+
+<h3>例B：6月（オフシーズン・全ゼロ）</h3>
+<div class="obs">citycode=27123 / start=20260603 / 2026-06-03 取得</div>
+<pre><code>citycode,date,pollen
+27123,2026-06-03T00:00:00+09:00,0
+27123,2026-06-03T01:00:00+09:00,0
+27123,2026-06-03T02:00:00+09:00,0
+27123,2026-06-03T03:00:00+09:00,0
+27123,2026-06-03T04:00:00+09:00,0
+...</code></pre>
+<p>→ オフシーズンは終日 <code>0</code>。これも<strong>正常データ（保存対象）</strong>。欠測ではない。</p>
+
+<h3>例C：8月下旬（観測終了間際・欠測）</h3>
+<div class="obs">citycode=27123 / start=20260820 / 2026-10-05 取得</div>
+<pre><code>citycode,date,pollen
+27123,2026-08-20T00:00:00+09:00,-9999
+27123,2026-08-20T01:00:00+09:00,-9999
+27123,2026-08-20T02:00:00+09:00,-9999
+...（24時間すべて -9999）</code></pre>
+<p>→ <strong>0と違い、終日 <code>-9999</code> になる日がある</strong>＝これが欠測。<code>pollen &lt; 0</code> のガードで正しくスキップされる。</p>
+
+<div class="tip">🟣 citycode <code>27123</code> = 大阪市某区（27=大阪府）。地点名（<code>ObservationPoint.name</code>）はAPIに含まれないため、別途自分で付ける必要がある（要検討：論点として下記）。</div>
+
+<!-- ============================================================ -->
+<h2 id="outofseason">6. 観測期間外のレスポンス（404 / 400）</h2>
+
+<div class="danger">
+🔴 <strong>観測期間を過ぎると、CSVそのものが返らず404になる</strong>（0埋め・欠測埋めのCSVではない）。<code>PollenApiClient.fetchRawCsv()</code> はこの404をハンドリングしていないため、<code>HttpClientErrorException$NotFound</code> がそのまま例外として伝播する。
+</div>
+
+<p>2026-10-05 に <code>citycode=27123</code> で、<code>start</code> を1日ずつ変えて実機確認した結果：</p>
+
+<table>
+<tr><th><code>start</code></th><th>HTTPステータス</th><th>内容</th></tr>
+<tr><td>〜 2026-08-24</td><td><span class="term" data-tooltip="200 OK">200</span></td><td>CSVが返る（花粉0、または欠測 <code>-9999</code> が混在。<a href="#samples">例A〜C</a>）</td></tr>
+<tr><td>2026-08-25 〜 今日</td><td><strong>404</strong></td><td><code>{"errors":[{"message":"data does not exist"}]}</code><br>観測そのものが行われていない期間。CSVは1行も返らない</td></tr>
+<tr><td>今日より後の未来日</td><td><strong>400</strong></td><td><code>{"errors":[{"message":"start must be less than or equal today"}, ...]}</code><br>未来日を指定した場合のバリデーションエラー（404とは別のエラー）</td></tr>
+</table>
+
+<div class="warning">
+🟡 <strong>この境界日（2026-08-24）は <code>citycode=27123</code> 固有の値</strong>で、花粉の種類・地域によって観測期間は異なると考えられる（スギ花粉は春、ブタクサなど秋の花粉もあるため、地点や品種設定によって期間がズレる可能性がある。未確認）。「○月×日を過ぎたら必ず404」という決め打ちはできない。
+</div>
+
+<div class="implementation">
+🔵 <strong>実装への影響</strong>：<code>IngestRunner</code> が <code>LocalDate.now()</code> を使う本番運用では、観測期間外の時期は<strong>毎回404で例外が発生する</strong>。これは「バグ」ではなく「データが無い」という正常な状態なので、将来的には <code>PollenApiClient</code> 側で404を捕捉し「データ無し」として扱う（例外を投げずに空リストを返す、など）設計が必要になる。Phase 1の時点では、動作確認用に観測期間内の日付（例：<code>2026-03-01</code>）を一時的に指定して検証している。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="mapping">7. 変換の流れ（CSV1行 → PollenMeasurement）</h2>
+<pre><code>"27123,2026-03-01T02:00:00+09:00,1"
+        │
+        ├─ citycode "27123"  → findByExternalId("27123") で ObservationPoint を解決
+        ├─ date     "...+09:00" → OffsetDateTime.parse(...).toInstant()  → measuredAt
+        └─ pollen   "1"         → Integer.parseInt → pollenCount
+        │
+        ▼ pollen が負数なら ここでスキップ（欠測）
+   PollenMeasurement.of(point, measuredAt, pollenCount)
+        │
+        ▼ existsByObservationPointAndMeasuredAt で重複チェック後
+   repository.save(...)</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="open">8. 未確認・要注意の論点</h2>
+<table>
+<tr><th>論点</th><th>状況 / 方針</th></tr>
+<tr><td>欠測値の実体（-9999か）</td><td>✅ 確認済み（2026-10-05）。<code>-9999</code> で間違いない。<a href="#outofseason">6章</a>参照</td></tr>
+<tr><td><code>name</code>（地点名）の取得元</td><td>APIに含まれない。citycode→地点名の対応をどこかで持つ必要（当面は手動設定 or マスタ。Phase 3で整理）</td></tr>
+<tr><td><code>start</code> のみ指定時の取得範囲</td><td>✅ 確認済み。1日分（24件）が返る。期間を複数日まとめて取る方法は未確認</td></tr>
+<tr><td>観測期間外のハンドリング</td><td>🔴 未対応。<code>fetchRawCsv()</code> は404をそのまま例外にしている。<a href="#outofseason">6章</a>参照</td></tr>
+<tr><td>観測期間の境界（地点・花粉種別ごとの違い）</td><td>未確認。<code>citycode=27123</code> では2026-08-24が最後だったが、他地点・来年以降は要再確認</td></tr>
+<tr><td><code>pollen</code>の単位（個/m³ or 個/cm²）</td><td>🔴 未確認（2026-10-10発覚）。このメモは「個/m³」と記載しているが、Web検索で見つけたポールンロボ本体の説明では「個/cm²」。API自体に単位の明記はない。Phase 2のしきい値設計では、この不一致を認識の上で仮の数値を採用した（<a href="../guides/2026-10-09_Phase2ガイド-しきい値判定とDiscord通知.html">Phase 2ガイド</a>参照）</td></tr>
+<tr><td>レスポンスの行数上限・末尾の改行</td><td>パース時に空行・末尾改行を弾く実装にする</td></tr>
+</table>
+
+<div class="ref-link">📚 関連：<a href="../guides/2026-06-03_外部API連携ガイド.html">外部API連携ガイド</a>（このメモを使ってDTO/Client/Serviceを実装）</div>
+
+<hr style="margin: 3rem 0; border: none; border-top: 1px dashed #cbd5e1;">
+<p style="text-align:center; color:#6b7280; font-size:0.9em;">ポールンロボAPI 仕様メモ ／ 花粉通知アプリ ／ 作成 2026-06-03</p>
+
+</body>
+</html>

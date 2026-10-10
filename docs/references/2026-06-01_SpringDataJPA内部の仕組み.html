@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Spring Data JPA はどこで実装されるのか（内部の仕組み）| 花粉通知アプリ</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+         max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; line-height: 1.75; color: #1f2937; background: #fafafa; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.5rem; font-size: 1.8rem; }
+  h2 { border-left: 5px solid #2563eb; padding-left: 0.6rem; margin-top: 2.6rem; font-size: 1.32rem; }
+  h3 { margin-top: 1.6rem; font-size: 1.08rem; color: #374151; }
+  .term { border-bottom: 1px dotted #2563eb; cursor: help; }
+  .concept { background: #ecfdf5; border-left: 4px solid #10b981; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .implementation { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .danger { background: #fee2e2; border-left: 4px solid #ef4444; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  .tip { background: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.93rem; }
+  th, td { border: 1px solid #d1d5db; padding: 0.5rem 0.8rem; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; }
+  code { background: #eef2f7; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.9em; font-family: "Consolas","Menlo",monospace; }
+  pre { background: #1e293b; color: #f1f5f9; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .toc { background: #f9fafb; border: 1px solid #e5e7eb; padding: 1rem 1.5rem; border-radius: 6px; }
+  .toc ol { margin: 0.3rem 0; }
+  .toc a { color: #2563eb; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  details { background: #f9fafb; padding: 0.8rem 1rem; border-radius: 4px; margin: 0.5rem 0; border: 1px solid #e5e7eb; }
+  summary { cursor: pointer; font-weight: bold; }
+  .diagram { margin: 1.5rem 0; text-align: center; }
+  .ref-link { font-size: 0.88rem; color: #6b7280; margin-top: 0.6rem; }
+  .ref-link a { color: #2563eb; }
+</style>
+</head>
+<body>
+
+<h1>⚙️ Spring Data JPA はどこで実装されるのか</h1>
+<p style="color:#6b7280;">花粉通知アプリ ／ 2026-06-01 ／ Phase 1 ／ Repository の内部の仕組み</p>
+
+<div class="concept">
+<strong>この資料の問い</strong><br>
+「<code>findByExternalId</code> の中身（<code>{ }</code>）を書いていないのに、なぜ動くのか？ Springはどこでこれを実装しているのか？」<br>
+答えは <strong>「ディスク上のどこにも無い。アプリ起動時にメモリ上でプロキシとして自動生成される」</strong>。この資料はその仕組みを段階的に深掘りします。
+</div>
+
+<div class="toc">
+<strong>📑 目次</strong>
+<ol>
+  <li><a href="#answer">結論：実装ファイルは存在しない</a></li>
+  <li><a href="#bootstrap">起動時に何が起きているか（ブートストラップ）</a></li>
+  <li><a href="#proxy">プロキシとは何か（動的プロキシ）</a></li>
+  <li><a href="#two">2種類のメソッドの実装の出どころ</a></li>
+  <li><a href="#derive">派生クエリはどう解析されるか（PartTree）</a></li>
+  <li><a href="#tx">トランザクションは誰が張るか</a></li>
+  <li><a href="#failfast">なぜ起動時にエラーで落ちるのか</a></li>
+  <li><a href="#debug">自分の目で確かめる方法</a></li>
+  <li><a href="#without">もしSpring Data JPAが無かったら</a></li>
+  <li><a href="#check">理解度チェック</a></li>
+  <li><a href="#next">次にやること</a></li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="answer">1. 結論：実装ファイルは存在しない</h2>
+<p>あなたがプロジェクト内をいくら探しても、<code>ObservationPointRepositoryImpl.java</code> のような実装クラスは<strong>見つかりません</strong>。自動生成された <code>.java</code> ファイルすら作られません。実装は<strong>実行時（アプリ起動時）にJVMのメモリ上で組み立てられる</strong>からです。</p>
+
+<div class="implementation">
+🔵 一言でいうと：<strong>あなたが書いた <code>interface</code> を実装した「プロキシオブジェクト」を、Springが起動時に動的に作り、Beanとして登録する。</strong>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="bootstrap">2. 起動時に何が起きているか（ブートストラップ）</h2>
+
+<div class="diagram">
+<svg width="720" height="300" viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif" font-size="12">
+  <defs>
+    <marker id="a2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#6b7280"/>
+    </marker>
+  </defs>
+  <rect x="250" y="10" width="220" height="38" rx="6" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="360" y="34" text-anchor="middle" font-weight="bold" fill="#1e40af">アプリ起動（Spring Boot）</text>
+
+  <line x1="360" y1="48" x2="360" y2="68" stroke="#6b7280" stroke-width="2" marker-end="url(#a2)"/>
+  <rect x="180" y="68" width="360" height="42" rx="6" fill="#f3f4f6" stroke="#9ca3af"/>
+  <text x="360" y="86" text-anchor="middle" fill="#374151">① @EnableJpaRepositories（Boot が自動有効化）</text>
+  <text x="360" y="102" text-anchor="middle" fill="#6b7280" font-size="11">repository パッケージを走査</text>
+
+  <line x1="360" y1="110" x2="360" y2="128" stroke="#6b7280" stroke-width="2" marker-end="url(#a2)"/>
+  <rect x="180" y="128" width="360" height="42" rx="6" fill="#f3f4f6" stroke="#9ca3af"/>
+  <text x="360" y="146" text-anchor="middle" fill="#374151">② JpaRepository を継承した interface を発見</text>
+  <text x="360" y="162" text-anchor="middle" fill="#6b7280" font-size="11">ObservationPointRepository / PollenMeasurementRepository</text>
+
+  <line x1="360" y1="170" x2="360" y2="188" stroke="#6b7280" stroke-width="2" marker-end="url(#a2)"/>
+  <rect x="180" y="188" width="360" height="42" rx="6" fill="#fef9c3" stroke="#ca8a04"/>
+  <text x="360" y="206" text-anchor="middle" fill="#713f12">③ RepositoryFactory がプロキシを生成</text>
+  <text x="360" y="222" text-anchor="middle" fill="#854d0e" font-size="11">interface を実装した実体を実行時に組み立て</text>
+
+  <line x1="360" y1="230" x2="360" y2="248" stroke="#6b7280" stroke-width="2" marker-end="url(#a2)"/>
+  <rect x="180" y="248" width="360" height="42" rx="6" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="360" y="266" text-anchor="middle" fill="#166534">④ プロキシを Bean として登録</text>
+  <text x="360" y="282" text-anchor="middle" fill="#166534" font-size="11">→ Service に注入(DI)できる状態に</text>
+</svg>
+</div>
+
+<p>Spring Boot を使っていると <code>@EnableJpaRepositories</code> を自分で書く必要すらありません（<span class="term" data-tooltip="Spring Bootがクラスパスや設定から必要な構成を自動的に行う仕組み">自動構成 / Auto Configuration</span>が裏で有効化）。だから「ただ interface を置くだけ」で動くのです。</p>
+
+<!-- ============================================================ -->
+<h2 id="proxy">3. プロキシとは何か（動的プロキシ）</h2>
+
+<div class="concept">
+🟢 <strong>プロキシ（proxy）= 代理人</strong>。本物の代わりに呼び出しを受け取り、必要な処理を挟んでから本体に渡すオブジェクト。Spring Data JPA は、あなたの interface を実装した<strong>代理人</strong>を実行時に生成します。
+</div>
+
+<p>技術的には <span class="term" data-tooltip="Javaが標準で持つ、interfaceを実行時に実装する仕組み">JDK動的プロキシ（Dynamic Proxy）</span>が使われます。interface に対して「呼び出しを横取りする1つの窓口（<span class="term" data-tooltip="プロキシへの全メソッド呼び出しを受け取る処理。Spring Data JPAではQueryExecutorMethodInterceptor等">InvocationHandler</span>）」を仕込み、どのメソッドが呼ばれたかを見て処理を振り分けます。</p>
+
+<pre><code>// あなたが受け取るのは interface 型だが…
+ObservationPointRepository repo;   // ← 中身は Springが作った代理人
+
+repo.getClass();  // 実行時に確認すると → "jdk.proxy3.$Proxy123" のような名前
+                  //   = ディスクに無い、実行時生成クラスの証拠</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="two">4. 2種類のメソッドの実装の出どころ</h2>
+
+<p>プロキシは、呼ばれたメソッドを2種類に振り分けます。</p>
+
+<table>
+<tr><th>種類</th><th>例</th><th>実装の出どころ</th></tr>
+<tr><td><strong>標準CRUD</strong></td><td><code>save</code> <code>findById</code> <code>findAll</code> <code>count</code></td><td>Spring Data JPA同梱の実クラス <strong><code>SimpleJpaRepository</code></strong> に委譲。内部で <span class="term" data-tooltip="JPAでDBとやり取りする中心オブジェクト。永続化操作の本体">EntityManager</span> を呼ぶ。</td></tr>
+<tr><td><strong>派生クエリ</strong></td><td><code>findByExternalId</code> <code>existsByObservationPointAndMeasuredAt</code></td><td>メソッド名を起動時に解析して生成したクエリ実行ロジック（<code>QueryExecutorMethodInterceptor</code> が担当）。</td></tr>
+<tr><td><strong>@Query 指定</strong></td><td><code>@Query("...")</code> 付きメソッド</td><td>あなたが書いたJPQL/SQLを実行（Phase 3以降）。</td></tr>
+</table>
+
+<div class="tip">
+🟣 <code>SimpleJpaRepository</code> が「本物の実装」。プロキシはその前に立つ受付係で、標準メソッドはそこへ取り次ぐ。<strong>つまり「全く実装が無い」のではなく、「共通実装＋メソッド名からの生成」を組み合わせている</strong>。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="derive">5. 派生クエリはどう解析されるか（PartTree）</h2>
+
+<p>ここが「メソッド名を書くだけ」の正体です。Spring Data は <span class="term" data-tooltip="メソッド名を文法解析する内部コンポーネント">PartTree</span> という解析器でメソッド名をトークンに分解します。</p>
+
+<pre><code>existsByObservationPointAndMeasuredAt
+ │     │               │   │
+ │     │               │   └─ MeasuredAt … プロパティ measuredAt の条件
+ │     │               └───── And ……… AND で連結
+ │     └───────────────────── ObservationPoint … プロパティ observationPoint の条件
+ └─────────────────────────── existsBy …… 「存在するか(boolean)を返す」</code></pre>
+
+<p>これを元に JPQL（≒オブジェクト指向のSQL）を組み立て、最終的に Hibernate が実DBの SQL へ変換します。</p>
+
+<pre><code>existsByObservationPointAndMeasuredAt(point, at)
+   ↓ Spring Data が生成（JPQL）
+SELECT ... WHERE m.observationPoint = :p AND m.measuredAt = :at
+   ↓ Hibernate が変換（実SQL / PostgreSQL）
+SELECT ... WHERE observation_point_id = ? AND measured_at = ?</code></pre>
+
+<div class="warning">
+🟡 解析対象は<strong>Entityのフィールド名(camelCase)</strong>。<code>ObservationPoint</code> や <code>MeasuredAt</code> はフィールド <code>observationPoint</code> / <code>measuredAt</code> に対応する。DB列名(snake_case)ではない点に注意（命名規則リファレンス参照）。
+</div>
+
+<div class="ref-link">📚 公式：<a href="https://docs.spring.io/spring-data/jpa/reference/jpa/query-methods.html" target="_blank">Query Methods</a> ／ <a href="https://docs.spring.io/spring-data/jpa/reference/repositories/query-keywords-reference.html" target="_blank">Query Keywords Reference</a></div>
+
+<!-- ============================================================ -->
+<h2 id="tx">6. トランザクションは誰が張るか</h2>
+
+<div class="concept">
+🟢 <code>SimpleJpaRepository</code> の各メソッドには <code>@Transactional</code> が付いています。だから <code>save()</code> 1回はそれだけで<span class="term" data-tooltip="複数のDB操作をまとめて「全部成功か全部失敗」にする単位">トランザクション</span>になります（=プロキシがDB接続の開始/コミット/ロールバックを面倒みる）。
+</div>
+
+<p>ただし「複数の保存をまとめて1トランザクションにしたい」場合は、呼び出す側（<strong>Service</strong>）に <code>@Transactional</code> を付けて束ねます。これは次のステップで効いてきます（複数観測値の一括保存など）。</p>
+
+<!-- ============================================================ -->
+<h2 id="failfast">7. なぜ起動時にエラーで落ちるのか</h2>
+
+<p>派生クエリの解析は<strong>起動時（プロキシ生成時）</strong>に行われます。だからメソッド名のミスは実行を待たずに発覚します。</p>
+
+<div class="danger">
+🔴 <strong>例：タイポや存在しないフィールド</strong><br>
+<code>findByExternalIdd(...)</code> や <code>findByCityName(...)</code>（<code>cityName</code> フィールドが無い）と書くと——<br>
+<code>PropertyReferenceException: No property 'xxx' found for type 'ObservationPoint'</code><br>
+というエラーで<strong>アプリが起動しない</strong>。
+</div>
+
+<div class="tip">
+🟣 これは<strong>利点</strong>。実行してその行に到達するまで気づけない…のではなく、起動直後（=開発中すぐ）に気づける。<span class="term" data-tooltip="問題を早い段階で表面化させる設計思想">fail-fast</span> の好例。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="debug">8. 自分の目で確かめる方法</h2>
+
+<table>
+<tr><th>やりたいこと</th><th>方法</th></tr>
+<tr><td>プロキシだと確認する</td><td>デバッガで <code>repo.getClass().getName()</code> を見る → <code>$ProxyNNN</code></td></tr>
+<tr><td>生成されたSQLを見る</td><td><code>application.yml</code> に <code>spring.jpa.show-sql: true</code>（整形は <code>spring.jpa.properties.hibernate.format_sql: true</code>）</td></tr>
+<tr><td>パラメータの値も見る</td><td>ログ設定で <code>logging.level.org.hibernate.orm.jdbc.bind: trace</code></td></tr>
+</table>
+
+<div class="warning">
+🟡 <code>show-sql</code> は学習中はON推奨。ただし本番は大量ログになるのでOFF。Phase 1の今は「自分のメソッド名がどんなSQLになるか」を観察する絶好の機会。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="without">9. もしSpring Data JPAが無かったら</h2>
+
+<p>ありがたみを知るため、同じことを<strong>素のJPA（EntityManager）</strong>で書くとどうなるか：</p>
+
+<pre><code>// findByExternalId 相当を手書きすると…
+public Optional&lt;ObservationPoint&gt; findByExternalId(String externalId) {
+    String jpql = "SELECT o FROM ObservationPoint o WHERE o.externalId = :eid";
+    List&lt;ObservationPoint&gt; result = entityManager
+            .createQuery(jpql, ObservationPoint.class)
+            .setParameter("eid", externalId)
+            .getResultList();
+    return result.stream().findFirst();
+}</code></pre>
+
+<p>これを全メソッド・全Entityで書くのは退屈でバグの温床。Spring Data は<strong>「メソッド名という宣言」だけでこれを肩代わり</strong>している、というわけです。「単純で機械的なものは機械に任せ、人は意図の宣言に集中する」思想。</p>
+
+<!-- ============================================================ -->
+<h2 id="check">10. 理解度チェック</h2>
+
+<details>
+<summary>Q1. <code>findByExternalId</code> の実装は、プロジェクトのどのファイルにある？</summary>
+<p>どのファイルにも無い。アプリ起動時にSpringがプロキシとしてメモリ上に生成する。</p>
+</details>
+<details>
+<summary>Q2. <code>save()</code> の実装の「本体」はどこにある？</summary>
+<p>Spring Data JPA同梱の <code>SimpleJpaRepository</code>。プロキシは標準メソッドをそこへ委譲する。</p>
+</details>
+<details>
+<summary>Q3. メソッド名を <code>findByCtyName</code> とタイポした。いつエラーになる？</summary>
+<p>アプリ<strong>起動時</strong>（プロキシ生成時の解析）。<code>PropertyReferenceException</code> で起動失敗。実行時まで待たない（fail-fast）。</p>
+</details>
+<details>
+<summary>Q4. メソッド名に書くのはフィールド名(camelCase)？ DB列名(snake_case)？</summary>
+<p>Entityのフィールド名(camelCase)。<code>ObservationPoint</code> → <code>observationPoint</code>、<code>MeasuredAt</code> → <code>measuredAt</code>。DB列名ではない。</p>
+</details>
+<details>
+<summary>Q5. <code>save()</code> 1回はトランザクションになっている？</summary>
+<p>なっている。<code>SimpleJpaRepository</code> のメソッドに <code>@Transactional</code> が付いているため。複数操作を束ねたいときはService側に <code>@Transactional</code> を付ける。</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="next">11. 次にやること</h2>
+
+<div class="tip">
+🟣 Repositoryの仕組みが分かったら、次は<strong>外部API（ポールンロボ）→ DTO → Entity → Repository.save()</strong> の流れを作ります。<code>save()</code> が裏でどんなSQLを出すか、<code>spring.jpa.show-sql</code> をONにして観察しながら進めると理解が深まります。<br>
+そして「Repositoryが実際にDBへ書けるか」は、Docker Compose で PostgreSQL を起動して初めて確認できます（コンパイル成功≠DB疎通成功）。
+</div>
+
+<div class="concept">
+🟢 <strong>Phase 4への伏線</strong>：今は「Springの便利機能」として使ったが、DDDでは Repository は「集約の永続化を隠す境界」になる。今の <code>ObservationPointRepository</code> が、その「ドメインとDBの境界線」の原型。プロキシという実装詳細をドメインから完全に隠せている点が、まさにDDDが目指す形。
+</div>
+
+<hr style="margin: 3rem 0; border: none; border-top: 1px dashed #cbd5e1;">
+<p style="text-align:center; color:#6b7280; font-size:0.9em;">Spring Data JPA 内部の仕組み ／ 花粉通知アプリ ／ 作成 2026-06-01</p>
+
+</body>
+</html>

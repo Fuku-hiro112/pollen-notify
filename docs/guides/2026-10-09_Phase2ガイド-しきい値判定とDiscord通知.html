@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 2 ガイド — しきい値判定・Discord通知・定期実行</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { background-color:#FBFAF7; color:#1F2530; }
+  body { font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+         max-width: 900px; margin: 0 auto; padding: 2rem; line-height: 1.7; font-size:16px; }
+  h1 { border-bottom: 3px solid #2563eb; padding-bottom: 0.5rem; font-size:1.7rem; }
+  h2 { border-left: 5px solid #2563eb; padding-left: 0.6rem; margin-top: 2.8rem; font-size:1.3rem; }
+  h3 { margin-top: 1.6rem; font-size:1.1rem; }
+  .subtitle{ color:#5A6472; font-size:0.95rem; }
+  a { color:#1d4ed8; }
+  .term { border-bottom: 1px dotted #1d4ed8; cursor: help; position:relative; font-weight:600; color:#1d4ed8; }
+  .term:hover::after{ content:attr(data-tooltip); position:absolute; left:0; top:1.7em; z-index:10;
+        background:#1F2530; color:#F5F6F7; padding:0.5rem 0.7rem; border-radius:6px; width:max-content; max-width:300px;
+        font-size:0.8rem; font-weight:400; line-height:1.5; box-shadow:0 4px 12px rgba(0,0,0,.2); white-space:normal; }
+  .concept { background:#ecfdf5; border-left:4px solid #10b981; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .implementation { background:#eff6ff; border-left:4px solid #3b82f6; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .warning { background:#fef3c7; border-left:4px solid #f59e0b; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .danger { background:#fee2e2; border-left:4px solid #B23A2E; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .tip { background:#f5f3ff; border-left:4px solid #8b5cf6; padding:1rem; margin:1rem 0; border-radius:4px; }
+  .user-task { background:#fffbeb; border:1px dashed #B45309; padding:0.8rem 1rem; margin:1rem 0; border-radius:6px; }
+  .box-label{ font-weight:700; display:block; margin-bottom:0.3rem; }
+  table { border-collapse:collapse; width:100%; margin:1rem 0; font-size:0.92rem; }
+  th, td { border:1px solid #D8DCD4; padding:0.5rem 0.8rem; text-align:left; vertical-align:top; }
+  th { background:#F1F2EE; }
+  code { background:#F1F2EE; padding:0.1rem 0.4rem; border-radius:3px; font-size:0.9em; font-family:Consolas,Menlo,monospace; }
+  pre { background:#1E2229; color:#E8EAED; padding:1rem; border-radius:6px; overflow-x:auto; font-size:0.85rem; }
+  pre code { background:transparent; color:inherit; padding:0; }
+  .blank { color:#F0A9A0; font-weight:700; }
+  .toc { background:#FFFFFF; border:1px solid #D8DCD4; padding:1rem 1.5rem; border-radius:6px; }
+  details { background:#FFFFFF; border:1px solid #D8DCD4; padding:0.8rem 1rem; border-radius:4px; margin:0.5rem 0; }
+  summary { cursor:pointer; font-weight:bold; color:#1d4ed8; }
+  .diagram { margin:1.5rem 0; text-align:center; overflow-x:auto; }
+  .doclink{ font-size:0.85rem; color:#5A6472; margin-top:0.4rem; }
+  .step-num{ display:inline-block; background:#2563eb; color:#fff; width:1.6em; height:1.6em; line-height:1.6em; text-align:center; border-radius:50%; font-size:0.9rem; margin-right:0.4rem; }
+
+  /* ── チェックリスト ── */
+  ul.checklist { list-style:none; padding-left:0; margin:0.4rem 0 1.2rem 0; }
+  ul.checklist li { padding:0.35rem 0; display:flex; align-items:flex-start; gap:0.6rem; }
+  ul.checklist li > input[type="checkbox"] { margin-top:0.35rem; width:1.15rem; height:1.15rem; flex-shrink:0; cursor:pointer; accent-color:#1F6B4A; }
+  ul.checklist li > input[type="checkbox"]:disabled { cursor:not-allowed; opacity:0.85; }
+  .sync-count { font-weight:700; color:#3D4654; white-space:nowrap; }
+  ul.checklist li > .check-body { flex:1; }
+  ul.checklist li.done > .check-body { color:#6B7280; text-decoration:line-through; text-decoration-thickness:1.5px; }
+  ul.checklist li.done > .check-body code { opacity:0.6; }
+  .progress-bar { background:#E3E5DF; border-radius:9999px; height:0.6rem; overflow:hidden; margin:0.4rem 0 0.6rem 0; }
+  .progress-fill { background:linear-gradient(to right,#34a97b,#1F6B4A); height:100%; transition:width .3s ease; }
+  .progress-label { font-size:0.85rem; color:#3D4654; margin-bottom:0.2rem; font-weight:600; }
+  .checklist-controls { margin:0.2rem 0 0.6rem 0; }
+  .checklist-controls button { background:#F1F2EE; border:1px solid #C9CEC4; border-radius:4px; padding:0.25rem 0.7rem; font-size:0.8rem; cursor:pointer; color:#3D4654; }
+  .checklist-controls button:hover { background:#E3E5DF; }
+  .dashboard { background:#FFFFFF; border:2px solid #1F6B4A; border-radius:8px; padding:1rem 1.4rem; margin:1.2rem 0 2rem 0; }
+  .dashboard h2 { margin-top:0.2rem; border-left:none; padding-left:0; font-size:1.15rem; color:#1F6B4A; }
+  .status { display:inline-block; font-size:0.72rem; font-weight:700; padding:0.1rem 0.5rem; border-radius:9999px; margin-left:0.4rem; vertical-align:middle; }
+  .st-done { background:#d6f5e6; color:#14563a; border:1px solid #6FD0A0; }
+  .st-todo { background:#fde8e6; color:#8A2B21; border:1px solid #E9A79F; }
+  .st-partial { background:#fdf0cf; color:#7A5407; border:1px solid #E3BE63; }
+  .memo { font-size:0.85rem; color:#5A6472; display:inline-block; width:100%; margin-top:0.15rem; text-decoration:none; }
+</style>
+</head>
+<body>
+
+<h1>Phase 2 ガイド — しきい値判定・Discord通知・定期実行</h1>
+<p class="subtitle">2026-10-09 作成。Phase 1（取得→保存）の続き。花粉が「しきい値を超えたらDiscordに知らせる」を、推奨する順番で組み立てる。</p>
+
+<div class="concept">
+<span class="box-label">🟢 このガイドの使い方</span>
+Phase 1と同じく<strong>進捗管理表</strong>です。チェックはブラウザに保存され、何日空けても続きから再開できます。
+（保存先はこのPCのブラウザ内。別PC・別ブラウザには引き継がれません）
+</div>
+
+<div class="dashboard">
+<h2 id="dashboard">📋 Phase 2 ダッシュボード</h2>
+<p class="subtitle" style="margin-top:-0.5rem;">🔗 各セクションのチェックに自動連動します。</p>
+<ul class="checklist">
+  <li data-sync="judge"><strong>F</strong>：しきい値判定ロジック（<code>PollenLevel</code> + <code>NotificationDecision</code>）を作る<span class="status st-todo">未</span>
+      <span class="memo">THRESHOLD=10・4段階のPollenLevelに決定（2026-10-10）、クラス自体はまだ → <a href="#judge">§2</a></span></li>
+  <li data-sync="discord"><strong>G</strong>：通知ポート抽象化 + Discord通知の実装<span class="status st-todo">未</span>
+      <span class="memo">文面「花粉通知：○○の花粉状況は、やや多いでしょう（値:15個/m³）」に決定（2026-10-10）→ <a href="#discord">§3</a></span></li>
+  <li data-sync="schedule"><strong>H</strong>：<code>@Scheduled</code> で定期実行化<span class="status st-todo">未</span>
+      <span class="memo">今は起動時1回（<code>IngestRunner</code>）のみ → <a href="#schedule">§4</a></span></li>
+  <li data-sync="verify"><strong>I</strong>：実際にDiscordへ届くのを確認<span class="status st-todo">未</span>
+      <span class="memo">しきい値を超える/超えないケース両方で確認 → <a href="#verify">§5</a></span></li>
+</ul>
+</div>
+
+<nav class="toc">
+  <strong>目次</strong>
+  <ol>
+    <li><a href="#map">1. 全体像と、なぜこの順番か</a></li>
+    <li><a href="#judge">2. 課題F：しきい値判定ロジック</a></li>
+    <li><a href="#discord">3. 課題G：通知ポート抽象化 + Discord通知</a></li>
+    <li><a href="#schedule">4. 課題H：@Scheduled で定期実行化</a></li>
+    <li><a href="#verify">5. 課題I：動かして確認</a></li>
+    <li><a href="#pitfall">6. やりがちな失敗</a></li>
+    <li><a href="#check">7. 理解度チェック</a></li>
+    <li><a href="#next">8. 次にやること（Phase 3 予告）</a></li>
+    <li><a href="#history">9. 更新履歴</a></li>
+  </ol>
+</nav>
+
+<!-- ============================================================ -->
+<h2 id="map">1. 全体像と、なぜこの順番か</h2>
+<p>Phase 2 のゴールは「花粉観測値がしきい値を超えたら、Discordに通知が届く」。やることは3つですが、
+<strong>作る順番</strong>が学習効率を大きく左右します。</p>
+
+<div class="diagram">
+<svg width="860" height="130" viewBox="0 0 860 130" role="img" aria-label="推奨する実装順">
+  <defs><marker id="ar2" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#475569"/></marker></defs>
+  <g font-size="11" text-anchor="middle">
+    <rect x="6"   y="40" width="190" height="50" rx="8" fill="#fee2e2" stroke="#B23A2E"/><text x="101" y="60" fill="#1F2530">F. しきい値判定</text><text x="101" y="76" font-size="9" fill="#3D4654">純粋ロジック・単体で試せる</text>
+    <rect x="236" y="40" width="190" height="50" rx="8" fill="#fee2e2" stroke="#B23A2E"/><text x="331" y="60" fill="#1F2530">G. Discord通知</text><text x="331" y="76" font-size="9" fill="#3D4654">Fの結果を実際に送る</text>
+    <rect x="466" y="40" width="190" height="50" rx="8" fill="#fee2e2" stroke="#B23A2E"/><text x="561" y="60" fill="#1F2530">H. 定期実行化</text><text x="561" y="76" font-size="9" fill="#3D4654">最後に自動化</text>
+    <rect x="696" y="40" width="158" height="50" rx="8" fill="#fee2e2" stroke="#B23A2E"/><text x="775" y="60" fill="#1F2530">I. 動作確認</text><text x="775" y="76" font-size="9" fill="#3D4654">Discordで目視</text>
+  </g>
+  <g stroke="#475569" stroke-width="2">
+    <line x1="196" y1="63" x2="234" y2="63" marker-end="url(#ar2)"/>
+    <line x1="426" y1="63" x2="464" y2="63" marker-end="url(#ar2)"/>
+    <line x1="656" y1="63" x2="694" y2="63" marker-end="url(#ar2)"/>
+  </g>
+</svg>
+</div>
+
+<div class="concept">
+<span class="box-label">🟢 なぜ「自動化（H）」を最後に回すのか</span>
+<code>@Scheduled</code>（定期実行）を先に作ると、<strong>1時間ごと・1日ごとに自動実行</strong>されるため、
+動作確認のたびに長時間待つか、時間を無理やり早回しする工夫が必要になります。<br><br>
+たとえるなら<strong>「炊飯器の味を確認したいとき、まず鍋で1杯だけ試し炊きする」</strong>のと同じです。
+炊飯器（自動化）にセットして炊き上がりを待つより、鍋（手動実行）で先に味（ロジック）を確かめる方が早い。
+<code>IngestRunner</code>（起動時に1回だけ実行）は、すでにその「試し炊き用の鍋」として使えます。
+</div>
+
+<div class="implementation">
+<span class="box-label">🔵 だからこの順番</span>
+<ol style="margin:0.4rem 0;">
+  <li><strong>F：しきい値判定</strong> — 外部依存ゼロの純粋なロジック。一番安全に・一番速く試行錯誤できる</li>
+  <li><strong>G：Discord通知</strong> — Fの判定結果を実際に送る。ここで初めて外部サービス（Discord）と繋がる</li>
+  <li><strong>H：定期実行化</strong> — F・Gが動くと分かってから、最後に自動化のフタを閉める</li>
+</ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="judge">2. <span class="step-num">F</span>課題F：しきい値判定ロジック</h2>
+
+<div class="concept">
+<span class="box-label">🟢 やさしく説明：通知判定とは</span>
+<span class="term" data-tooltip="観測値＋通知設定から、通知すべきか判断するドメインロジック（CLAUDE.md用語集）">通知判定（Notification Decision）</span>
+＝「<strong>この花粉の量は、知らせるべき量か？</strong>」を判断する役。たとえるなら<strong>体温計の『発熱ライン』判定</strong>です。
+体温計自体は「36.2℃」という値を測るだけ（＝Phase 1の<code>pollen_count</code>）。
+「37.5℃を超えたら発熱」という<strong>ライン（しきい値）</strong>と比べて初めて「これは通知すべき状態だ」と判断できます。
+</div>
+
+<table>
+<tr><th>体温計の世界</th><th>このアプリの世界</th></tr>
+<tr><td>36.2℃（測った値）</td><td><code>pollen_count</code>（観測値）</td></tr>
+<tr><td>37.5℃（発熱ライン）</td><td>しきい値</td></tr>
+<tr><td>「発熱している」という判断</td><td><code>NotificationDecision</code> の判定結果</td></tr>
+</table>
+
+<div class="user-task">
+<span class="box-label">🖊️ あなたが決める（設計判断①：しきい値をどこに置くか）</span>
+本来は「通知設定（Notification Preference）」としてユーザーごとにDB管理すべきですが、それは
+<a href="../../CLAUDE.md">プロジェクトのCLAUDE.md</a>のフェーズ表で <strong>Phase 3（REST APIで設定管理）</strong>の担当です。
+Phase 2 ではまだそこに踏み込まず、<strong>固定値（定数）</strong>でよい、というのが推奨です。
+<ul style="margin:0.4rem 0;">
+  <li>固定値にする理由を自分の言葉で説明できますか？（ヒント：「今作っていないものを先取りで作らない」というシンプルさの原則）</li>
+</ul>
+</div>
+
+<div class="concept">
+<span class="box-label">🟢 実在の基準を調べて決めた（2026-10-10、Claudeが検索して確認）</span>
+日本気象協会の花粉飛散予報では、以下の4段階が使われています。
+<table>
+<tr><th>値</th><th>予報表現</th></tr>
+<tr><td>0〜</td><td>少ないでしょう</td></tr>
+<tr><td>10〜</td><td>やや多いでしょう</td></tr>
+<tr><td>30〜</td><td>多いでしょう</td></tr>
+<tr><td>50以上</td><td>非常に多いでしょう</td></tr>
+</table>
+<p class="doclink">出典：<a href="https://jp.weathernews.com/news/38969" target="_blank">ウェザーニューズ「全国の花粉飛散数のリアルタイムデータを無料で公開」</a>内の日本気象協会基準の紹介</p>
+</div>
+
+<div class="warning">
+<span class="box-label">🟡 未確認・注意点（API仕様メモにも記録済み）</span>
+この基準は本来<strong>1日の合計値</strong>に対するものですが、私たちのAPIが返すのは<strong>1時間ごとの値</strong>です。
+さらに、ポールンロボ本体の単位は検索結果だと<strong>個/cm²</strong>とされており、私たちの
+<a href="../references/2026-06-03_ポールンロボAPI仕様メモ.html">API仕様メモ</a>に書いた「個/m³」と食い違っています（API自体に単位の明記はなし）。
+<strong>厳密な裏付けはまだ無い</strong>前提で、「仮の目安」として採用します。Phase 3で設定を調整可能にする時に見直す候補です。
+</div>
+
+<div class="concept">
+<span class="box-label">🟢 決定：THRESHOLD = 10、ただし「段階」で持つ</span>
+しきい値ちょうど（10）が「やや多い」の境目に一致するため、<strong>boolean（超えた/超えてない）だけでなく、
+4段階そのものを表す型</strong>を作る方が、後で通知文面に「やや多いでしょう」のような表現を使えて一石二鳥です。
+<span class="term" data-tooltip="同じ種類の決まった値の集まりを表すJavaの型。case文のように扱える">enum</span>
+を使うとこう書けます。
+</div>
+
+<div class="user-task">
+<span class="box-label">🖊️ あなたが書く（新規クラス：PollenLevel）</span>
+<pre><code>public enum PollenLevel {
+    FEW(0, "少ないでしょう"),
+    SLIGHTLY_MANY(10, "やや多いでしょう"),
+    MANY(30, "多いでしょう"),
+    VERY_MANY(50, "非常に多いでしょう");
+
+    private final int lowerBound;
+    @Getter
+    private final String label;   // @Getter（Lombok）で getLabel() が自動生成される。lowerBoundは内部実装の詳細なので非公開のまま
+
+    PollenLevel(int lowerBound, String label) {
+        this.lowerBound = lowerBound;
+        this.label = label;
+    }
+
+    public static PollenLevel of(int pollenCount) {
+        <span class="blank">/* ★ pollenCountに対応するレベルを選ぶロジック
+               ヒント：VERY_MANY側（大きい方）から順に見ていくと書きやすい */</span>
+    }
+}</code></pre>
+考える点：
+<ul style="margin:0.4rem 0;">
+  <li>enumの定数名は <code>UPPER_SNAKE_CASE</code>（<a href="../references/2026-05-31_命名規則リファレンス.html">命名規則リファレンス</a>参照）</li>
+  <li><code>of(...)</code> という名前にしたのは、<code>PollenMeasurement.of(...)</code>と同じ「引数からそのまま作る」慣習に合わせたため</li>
+  <li>境界値（ちょうど10・ちょうど30など）がどちらのレベルに入るか、自分で決めて説明できますか？</li>
+</ul>
+</div>
+
+<div class="user-task">
+<span class="box-label">🖊️ あなたが書く（NotificationDecisionはPollenLevelを使う形に）</span>
+<pre><code>public class NotificationDecision {
+
+    public boolean shouldNotify(int pollenCount) {
+        return <span class="blank">/* ★ PollenLevel.of(pollenCount) を使って判定する */</span>;
+    }
+}</code></pre>
+ヒント：「少ない」以外のレベルになったら通知する、と言い換えられます。
+</div>
+
+<div class="warning">
+<span class="box-label">🟡 設計判断②：Springに依存させるか（今は保留でOK）</span>
+<code>NotificationDecision</code> に <code>@Component</code> を付けて Spring Bean にするか、
+それとも Spring を一切知らないただの Java クラス（<span class="term" data-tooltip="特定のフレームワークに依存しない、素のJavaクラス">POJO</span>）にするかは選べます。
+<code>PollenLevel</code>（enum）はそもそもSpringを知る必要がありません。
+Phase 4（DDD）では「ドメインロジックはフレームワークに依存させない」という考え方が出てきますが、
+<strong>今のPhase 2では動けばどちらでもOK</strong>です。頭の片隅に置いておいてください。
+</div>
+
+<ul class="checklist">
+  <li><code>PollenLevel</code> enumを作り、4段階の境界値と文言を定義した</li>
+  <li><code>PollenLevel.of(int)</code> のロジックを書いた（境界値の扱いを含めて）</li>
+  <li><code>NotificationDecision.shouldNotify(int)</code> を <code>PollenLevel</code> を使う形で書いた</li>
+  <li><code>./gradlew compileJava</code> が通ることを確認した</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="discord">3. <span class="step-num">G</span>課題G：通知ポート抽象化 + Discord通知</h2>
+
+<div class="concept">
+<span class="box-label">🟢 やさしく説明：なぜ「抽象化」するのか</span>
+CLAUDE.mdのPhase 2の学習対象に<strong>「通知ポート抽象化」</strong>とあります。これは
+「<strong>通知の送り先（Discord）を、後で差し替えられる形にしておく</strong>」という考え方です。<br><br>
+たとえるなら<strong>電源プラグの規格</strong>です。家電（判定ロジック）は「コンセントに挿せば電気が流れる」ことだけ知っていればよく、
+電気が火力発電か太陽光かは気にしません。将来LINE通知（Phase 5で任意拡張とCLAUDE.mdに記載あり）を追加する時、
+「コンセント（インターフェース）」さえ合っていれば、家電側（判定ロジック）を一切変えずに済みます。
+</div>
+
+<div class="implementation">
+<span class="box-label">🔵 具体的には：インターフェース1つ + 実装1つ</span>
+<pre><code>public interface NotificationSender {
+    void send(String message);
+}</code></pre>
+<pre><code>@Component
+public class DiscordNotificationSender implements NotificationSender {
+
+    private final RestClient restClient;
+
+    public DiscordNotificationSender(@Value("${discord.webhook-url}") String webhookUrl) {
+        this.restClient = RestClient.create(webhookUrl);
+    }
+
+    @Override
+    public void send(String message) {
+        restClient.post()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(<span class="blank">/* ★ Discord Webhookが期待するJSONの形を作る */</span>)
+                .retrieve()
+                .toBodilessEntity();
+    }
+}</code></pre>
+</div>
+
+<div class="user-task">
+<span class="box-label">🖊️ あなたが調べる・決める</span>
+<ul style="margin:0.4rem 0;">
+  <li>Discord Webhookは、どういうJSONを受け取りますか？（公式ドキュメント参照。ヒント：キーは1語で、値がメッセージ本文）</li>
+  <li><code>PollenApiClient</code> が <code>@Value("${pollen-api.base-url}")</code> を使っていたのと同じパターンで、
+      <code>application.yml</code> に <code>discord.webhook-url</code> を追加し、実体は <code>.env</code> に置く（既存の<code>POSTGRES_*</code>と同じ扱い）</li>
+  <li><strong>Webhook URLは秘密情報</strong>です。<code>.env</code> は <code>.gitignore</code> に入っているか確認しましたか？</li>
+</ul>
+</div>
+
+<div class="concept">
+<span class="box-label">🟢 決定：文面の形（2026-10-10）</span>
+§2の <code>PollenLevel.getLabel()</code>（<code>@Getter</code>で生成）を使って、こういう文面にすることにしました。
+<pre><code>花粉通知：大阪府大阪市淀川区の花粉状況は、やや多いでしょう（値:15個/m³）</code></pre>
+</div>
+
+<div class="user-task">
+<span class="box-label">🖊️ あなたが書く（メッセージを組み立てる場所）</span>
+<code>DiscordNotificationSender</code> は「文字列を送るだけ」に専念させ、
+文面を組み立てるのは<strong>呼び出し側（§4で作るスケジューラ）</strong>にするのが、§3冒頭で説明した「通知ポート抽象化」の意図に合います。
+<pre><code>String message = String.format(<span class="blank">/* ★ "花粉通知：%sの花粉状況は、%s（値:%d個/m³）" の形で
+       観測地点名・PollenLevel.getLabel()・pollenCount を埋め込む */</span>);
+sender.send(message);</code></pre>
+考える点：<code>point.getName()</code>（観測地点名）と <code>PollenLevel.of(pollenCount)</code> を、どこで・どう受け取るか。
+</div>
+
+<div class="danger">
+<span class="box-label">🔴 絶対に守ること</span>
+Discord Webhook URLをコードに直接書いたり、Gitにコミットしたりしないでください。知らない人がそのURLを知ると、
+あなたのDiscordチャンネルに誰でも投稿できてしまいます。<code>PollenApiClient</code>の<code>base-url</code>と違い、
+<strong>これは公開情報ではありません</strong>。
+</div>
+
+<ul class="checklist">
+  <li><code>NotificationSender</code> インターフェースを作った</li>
+  <li><code>DiscordNotificationSender</code> を実装した</li>
+  <li>Discord側でWebhook URLを発行した（サーバー設定 → 連携サービス → ウェブフック）</li>
+  <li>URLを <code>.env</code> に置き、<code>application.yml</code> 経由で読み込んだ</li>
+  <li><code>.env</code> が <code>.gitignore</code> 対象であることを再確認した</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="schedule">4. <span class="step-num">H</span>課題H：@Scheduled で定期実行化</h2>
+
+<div class="concept">
+<span class="box-label">🟢 やさしく説明：@Scheduled とは</span>
+<code>CommandLineRunner</code>は「開店と同時に1回だけ流れるアナウンス」でした。
+<span class="term" data-tooltip="指定した間隔・時刻でメソッドを自動的に繰り返し実行する仕組み">@Scheduled</span>はその進化版で、
+「<strong>毎日・毎時間、決まった時刻に繰り返しアナウンスする</strong>」仕組みです。
+</div>
+
+<div class="implementation">
+<span class="box-label">🔵 必要なこと</span>
+<ol style="margin:0.4rem 0;">
+  <li>メイン設定クラス（<code>PollenNotifyApplication</code>）か、別の設定クラスに <code>@EnableScheduling</code> を付ける</li>
+  <li>定期実行したい処理に <code>@Scheduled(...)</code> を付ける</li>
+</ol>
+<pre><code>@Component
+public class PollenNotificationScheduler {
+
+    private final PollenIngestService ingestService;
+    private final NotificationDecision decision;
+    private final NotificationSender sender;
+    // ...コンストラクタで注入...
+
+    @Scheduled(<span class="blank">/* ★ cron か fixedRate、どちらでいつ実行する？ */</span>)
+    public void run() {
+        <span class="blank">/* ★ ingest → 最新の観測値を取得 → 判定 → 通知、の流れ */</span>
+    }
+}</code></pre>
+</div>
+
+<div class="user-task">
+<span class="box-label">🖊️ あなたが決める（設計判断③：いつ実行する？）</span>
+<table>
+<tr><th>方式</th><th>意味</th><th>向いている場面</th></tr>
+<tr><td><code>fixedRate</code></td><td>前回の開始から○ミリ秒後に次を実行</td><td>「とにかく一定間隔で」。時刻は気にしない処理</td></tr>
+<tr><td><code>cron</code></td><td>「毎日7時」のように具体的な時刻を指定</td><td>人の生活リズムに合わせたい処理</td></tr>
+</table>
+<a href="../references/2026-06-03_ポールンロボAPI仕様メモ.html">ポールンロボAPI仕様メモ</a>によれば、花粉データは<strong>1時間おきに更新</strong>されます。
+「毎朝〇時に、花粉の心配をしたい人に知らせる」という本来の目的を考えると、<code>fixedRate</code>で数秒おきに叩くのは
+APIへの負荷的にも目的的にも不向きです。<code>cron</code>で「1日1回・朝の決まった時刻」が自然ではないか、考えてみてください。
+</div>
+
+<div class="warning">
+<span class="box-label">🟡 設計判断④：IngestRunner はどうする？</span>
+<code>IngestRunner</code>（起動時1回）を削除して<code>@Scheduled</code>に一本化するか、
+開発中の手動確認用として残すかは選べます。削除する場合、§5の動作確認は <code>@Scheduled</code> の実行時刻を待つ必要がある点に注意。
+</div>
+
+<ul class="checklist">
+  <li><code>@EnableScheduling</code> を付けた</li>
+  <li><code>cron</code> か <code>fixedRate</code> を選び、理由を言葉にできる</li>
+  <li><code>PollenNotificationScheduler</code>（名前は自由）を作り、ingest→判定→通知の流れを書いた</li>
+  <li><code>IngestRunner</code> を残すか消すか決めた</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="verify">5. <span class="step-num">I</span>課題I：動かして確認</h2>
+
+<div class="implementation">
+<span class="box-label">🔵 確認すべき2つのケース</span>
+しきい値判定は「境界」がある処理なので、<strong>両方のケース</strong>を確認しないと「たまたま動いた」で終わってしまいます。
+</div>
+<ul class="checklist">
+  <li>しきい値を<strong>超えるデータ</strong>で実行し、Discordに通知が届くのを目で見る</li>
+  <li>しきい値を<strong>超えないデータ</strong>で実行し、Discordに<strong>何も届かない</strong>ことを確認する</li>
+  <li>ちょうどしきい値と<strong>同じ値</strong>のケースで、§2で決めた境界の挙動（通知する/しない）通りになっているか確認する</li>
+  <li>（<code>@Scheduled</code>を使う場合）指定した時刻・間隔で実際に動くのを確認する</li>
+</ul>
+<div class="tip">
+<span class="box-label">🟣 テスト用データの作り方のヒント</span>
+Phase 1で確認した通り、花粉の観測期間外は404になります。しきい値を超える値を確実に用意したい場合、
+<a href="../references/2026-06-03_ポールンロボAPI仕様メモ.html">APIの実レスポンス例</a>にある観測期間内の日付（例：花粉が多い3月）を使うか、
+あるいは判定ロジック（F）だけを単体で動かして固定の数値（例：<code>decision.shouldNotify(999)</code>）で試すと、APIの季節に振り回されずに確認できます。
+</div>
+
+<!-- ============================================================ -->
+<h2 id="pitfall">6. やりがちな失敗</h2>
+<div class="danger">
+<ul style="margin:0.3rem 0;">
+  <li><strong>しきい値の境界を逆に書く</strong> → <code>&gt;</code> と <code>&gt;=</code> を取り違えて、ちょうどの値で通知する/しないが意図と逆になる</li>
+  <li><strong>Webhook URLをコードに直書き・Gitにコミット</strong> → 誰でもそのチャンネルに投稿できる状態になる（§3）</li>
+  <li><strong>@EnableScheduling を付け忘れる</strong> → <code>@Scheduled</code> を付けても何も起きない（エラーも出ないので気づきにくい）</li>
+  <li><strong>fixedRateで短い間隔を指定</strong> → 外部APIへの過剰なアクセスになる。Phase 1の404/400の仕様を思い出す</li>
+  <li><strong>通知ロジックとDiscord送信を1つのクラスに混ぜる</strong> → 後でLINE通知を追加する時、判定ロジックまで書き直すことになる（§3の抽象化の意味が消える）</li>
+</ul>
+</div>
+
+<h2 id="check">7. 理解度チェック</h2>
+<details><summary>Q1. しきい値をPhase 2では固定値にする理由は？</summary>
+<p>ユーザーごとの通知設定（Notification Preference）のDB管理はPhase 3の担当。今作っていない機能を先取りして作らない、というシンプルさの原則。</p></details>
+<details><summary>Q2. NotificationSender をインターフェースにする理由は？</summary>
+<p>通知の送り先（Discord/LINE等）を差し替え可能にするため。判定ロジック側は送信手段の詳細を知らなくてよくなる（通知ポート抽象化）。</p></details>
+<details><summary>Q3. cron と fixedRate の使い分けは？</summary>
+<p>fixedRateは一定間隔、cronは具体的な時刻指定。人の生活リズムに合わせる通知ならcronが自然。</p></details>
+<details><summary>Q4. @Scheduled を付けても動かない時、まず疑うべきことは？</summary>
+<p>@EnableScheduling が付いているか。付け忘れてもコンパイルエラーにならないため気づきにくい。</p></details>
+<details><summary>Q5. なぜF（判定ロジック）から作り、H（定期実行）を最後にするのか？</summary>
+<p>定期実行を先に作ると、動作確認のたびに実行時刻を待つ必要がある。外部依存のない純粋なロジックから作ることで、速く・安全に試行錯誤できる。</p></details>
+
+<h2 id="next">8. 次にやること（Phase 3 予告）</h2>
+<div class="tip">
+このガイドが全部埋まれば <strong>Phase 2 クリア</strong>（しきい値を超えたらDiscordに届く）。次の Phase 3 では：
+<ul style="margin:0.4rem 0;">
+  <li><strong>通知設定（Notification Preference）をREST APIで管理</strong>：今は固定値だったしきい値・対象地域・通知時間帯をユーザーごとに設定可能にする</li>
+  <li><strong>API設計・認証・テスト</strong>が学習対象に入ってくる</li>
+  <li>Phase 2で作った <code>NotificationDecision</code> は、固定値を受け取る形から「ユーザーの設定を受け取る」形へ育っていく</li>
+</ul>
+</div>
+
+<hr style="margin:3rem 0; border:none; border-top:1px dashed #C9CEC4;">
+<h2 id="history">9. 更新履歴</h2>
+<ul style="font-size:0.9rem; color:#3D4654;">
+  <li><strong>2026-10-09（初版）</strong>：Phase 1完了を受けて作成。F（しきい値判定）→G（Discord通知）→H（定期実行）の順を推奨する理由を添えて構成。</li>
+  <li><strong>2026-10-10（設計決定を反映）</strong>：ユーザーとの相談で THRESHOLD=10 に決定。日本気象協会の4段階基準（少ない/やや多い/多い/非常に多い）を調査し、boolean判定から <code>PollenLevel</code> enumへ設計を発展。通知文面「花粉通知：○○の花粉状況は、やや多いでしょう（値:15個/m³）」を決定し §2・§3 を更新。1時間値と1日基準の粒度の違い、個/cm²と個/m³の単位の食い違いは未確認のまま仮採用と明記。</li>
+</ul>
+
+<script>
+(function () {
+  const PAGE_KEY = 'pollen-notify:phase2-notify-guide';
+
+  function nearestSectionId(el) {
+    let n = el;
+    while (n) {
+      let p = n.previousElementSibling;
+      while (p) {
+        if (/^H[1-6]$/.test(p.tagName) && p.id) return p.id;
+        p = p.previousElementSibling;
+      }
+      if (n.id) return n.id;
+      n = n.parentElement;
+    }
+    return 'root';
+  }
+
+  const registry = {};
+  const listeners = [];
+
+  function setup(ul, idx) {
+    const sectionKey = nearestSectionId(ul);
+    const items = Array.from(ul.children).filter(c => c.tagName === 'LI');
+    const isDerived = li => li.hasAttribute('data-sync');
+
+    items.forEach((li, i) => {
+      if (li.querySelector(':scope > input[type="checkbox"]')) return;
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.id = PAGE_KEY + ':' + sectionKey + ':' + idx + ':' + i;
+      const body = document.createElement('span');
+      body.className = 'check-body';
+      while (li.firstChild) body.appendChild(li.firstChild);
+      li.appendChild(cb);
+      li.appendChild(body);
+
+      if (isDerived(li)) {
+        cb.disabled = true;
+        cb.title = '各セクションのチェックから自動で更新されます';
+        const count = document.createElement('span');
+        count.className = 'sync-count';
+        (body.querySelector('.memo') || body).appendChild(count);
+        return;
+      }
+
+      let stored = null;
+      try { stored = localStorage.getItem(cb.id); } catch (e) {}
+      const checked = (stored === null) ? li.hasAttribute('data-done') : (stored === '1');
+      cb.checked = checked;
+      li.classList.toggle('done', checked);
+
+      cb.addEventListener('change', () => {
+        li.classList.toggle('done', cb.checked);
+        try { localStorage.setItem(cb.id, cb.checked ? '1' : '0'); } catch (e) {}
+        update();
+        listeners.forEach(fn => fn());
+      });
+    });
+
+    const hasDerived = items.some(isDerived);
+    const wrap = document.createElement('div');
+    wrap.innerHTML =
+      '<div class="progress-label"><span class="progress-text"></span></div>' +
+      '<div class="progress-bar"><div class="progress-fill"></div></div>' +
+      (hasDerived ? '' :
+        '<div class="checklist-controls"><button type="button" class="reset-btn">リセット</button></div>');
+    ul.parentNode.insertBefore(wrap, ul);
+
+    function update() {
+      const total = items.length;
+      const done = items.filter(li => li.classList.contains('done')).length;
+      wrap.querySelector('.progress-text').textContent =
+        done + ' / ' + total + ' 完了' + (done === total && total > 0 ? ' 🎉' : '');
+      wrap.querySelector('.progress-fill').style.width =
+        (total ? (done / total * 100) : 0) + '%';
+    }
+
+    const resetBtn = wrap.querySelector('.reset-btn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (!confirm('このチェックリストの状態を初期状態に戻しますか？')) return;
+        items.forEach(li => {
+          const cb = li.querySelector(':scope > input[type="checkbox"]');
+          if (!cb) return;
+          try { localStorage.removeItem(cb.id); } catch (e) {}
+          const d = li.hasAttribute('data-done');
+          cb.checked = d;
+          li.classList.toggle('done', d);
+        });
+        update();
+        listeners.forEach(fn => fn());
+      });
+    }
+
+    registry[sectionKey] = { items: items, update: update };
+    update();
+  }
+
+  function resolve(spec) {
+    const out = [];
+    spec.split(',').forEach(part => {
+      const [sec, idx] = part.trim().split('#');
+      const reg = registry[sec];
+      if (!reg) return;
+      if (idx === undefined) out.push.apply(out, reg.items);
+      else if (reg.items[Number(idx)]) out.push(reg.items[Number(idx)]);
+    });
+    return out;
+  }
+
+  function syncDerived() {
+    document.querySelectorAll('ul.checklist > li[data-sync]').forEach(li => {
+      const refs = resolve(li.getAttribute('data-sync'));
+      const done = refs.filter(r => r.classList.contains('done')).length;
+      const all = refs.length > 0 && done === refs.length;
+      const cb = li.querySelector(':scope > input[type="checkbox"]');
+      if (cb) cb.checked = all;
+      li.classList.toggle('done', all);
+      const count = li.querySelector('.sync-count');
+      if (count) count.textContent = ' 〔' + done + '/' + refs.length + ' 済〕';
+    });
+    Object.keys(registry).forEach(k => {
+      if (registry[k].items.some(li => li.hasAttribute('data-sync'))) registry[k].update();
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('ul.checklist').forEach((ul, i) => setup(ul, i));
+    listeners.push(syncDerived);
+    syncDerived();
+  });
+})();
+</script>
+
+</body>
+</html>
